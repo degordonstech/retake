@@ -58,6 +58,10 @@ export const api = {
   sfx: () => call<{ id: string; name: string }[]>("GET", "/api/sfx"),
   addSfx: (id: string, name: string) => call<{ asset: string; project: Project }>("POST", `/api/projects/${id}/sfx/${name}`),
   peaks: (id: string, aid: string) => call<{ per: number; peaks: number[] }>("GET", `/media/${id}/asset/${aid}/peaks`),
+  blurSpans: (id: string) => call<Record<string, number[][]>>("GET", `/api/projects/${id}/blur-spans`),
+  streamStart: (id: string, aspect: string) => call<{ token: string; file: string }>("POST", `/api/projects/${id}/stream-render`, { aspect }),
+  streamDone: (id: string, token: string, info: { duration: number; width: number; height: number; fps: number }) =>
+    call<Project>("POST", `/api/projects/${id}/stream-render/${token}/done`, info),
   correct: (id: string, take: string, word: number, text: string) => call<Project>("POST", `/api/projects/${id}/corrections`, { take, word, text }),
   captionLayout: (id: string, body: { clips: Clip[]; captions?: CaptionSettings; format?: FormatSettings }) =>
     call<CaptionLayout>("POST", `/api/projects/${id}/captions/layout`, body),
@@ -74,6 +78,7 @@ export const media = {
   frame: (pid: string, sid: string, t: number, w = 640) => `/api/projects/${pid}/frame?src=${sid}&t=${t.toFixed(2)}&w=${w}`,
   render: (pid: string, i: number) => `/media/${pid}/render/${i}`,
   asset: (pid: string, aid: string) => `/media/${pid}/asset/${aid}`,
+  source: (pid: string, sid: string) => `/media/${pid}/source/${sid}`,
   assetThumb: (pid: string, aid: string) => `/media/${pid}/asset/${aid}/thumb.jpg`,
   overlay: (pid: string, o: { kind: string; text: string; sub?: string; tag?: string }, w = 1280, h = 720) =>
     `/api/projects/${pid}/overlay.png?kind=${encodeURIComponent(o.kind)}&text=${encodeURIComponent(o.text)}` +

@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
-import { Captions, Check, Copy, FileText, FolderOpen, Loader2, Rocket, ShieldAlert, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Captions, Check, Copy, FileText, FolderOpen, Loader2, Rocket, ShieldAlert, ShieldCheck, Square, Zap } from "lucide-react";
+import { useLooks } from "../looks";
+import { exportInWindow } from "../engine/run";
 import { api, media } from "../api";
 import type { Job, Project } from "../types";
 import { ago, fmtDuration, fmtTime } from "../util";
@@ -36,6 +38,25 @@ export default function Export({ p, setP, job, active, start }: Props) {
   const toast = useToast();
   const [out, setOut] = useState<{ fps: number; quality: string; auto: { width: number; height: number; fps: number } } | null>(null);
   const rendering = active && job.kind === "render";
+  const looks = useLooks();
+  const [fast, setFast] = useState<{ f: number; msg: string } | null>(null);
+  const stopper = useRef<AbortController | null>(null);
+  const runFast = async () => {
+    const ctl = new AbortController();
+    stopper.current = ctl;
+    setFast({ f: 0, msg: "Getting ready" });
+    try {
+      const next = await exportInWindow(p, looks, (f, msg) => setFast({ f, msg }), ctl.signal);
+      setP(next);
+      toast("Your video is ready", "ok");
+    } catch (e) {
+      const err = e as Error;
+      toast(err.name === "AbortError" ? "Export stopped" : `Export failed: ${err.message}`, err.name === "AbortError" ? "info" : "bad");
+    } finally {
+      setFast(null);
+      stopper.current = null;
+    }
+  };
   const total = totalDuration(p.edit.clips);
   const last = p.renders[0];
 
@@ -66,9 +87,15 @@ export default function Export({ p, setP, job, active, start }: Props) {
           <h1>Export</h1>
           <p className="muted">{fmtDuration(total)} · {p.edit.clips.length} clips · {p.edit.overlays.length} text and graphics · {(p.edit.media ?? []).length} overlays · {(p.edit.audio ?? []).length} sounds</p>
         </div>
-        <button className="btn primary lg" onClick={() => start("render")} disabled={rendering || !p.edit.clips.length}>
-          {rendering ? <Loader2 size={18} className="spin" /> : <Rocket size={18} />} {rendering ? "Exporting" : last ? "Export again" : "Export video"}
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn lg" onClick={runFast} disabled={rendering || !!fast || !p.edit.clips.length}
+            title="Made right here by the editor's own engine, using your graphics chip. Fast, but the privacy read-back check is skipped.">
+            <Zap size={18} /> Fast export
+          </button>
+          <button className="btn primary lg" onClick={() => start("render")} disabled={rendering || !!fast || !p.edit.clips.length}>
+            {rendering ? <Loader2 size={18} className="spin" /> : <Rocket size={18} />} {rendering ? "Exporting" : last ? "Export again" : "Export video"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 18, alignItems: "start" }}>
@@ -121,6 +148,16 @@ export default function Export({ p, setP, job, active, start }: Props) {
         </section>
 
         <section className="col" style={{ gap: 18 }}>
+          {fast && (
+            <div className="card pad col rise" style={{ gap: 12 }}>
+              <div className="spread"><h3>{fast.msg}</h3>
+                <div className="row"><span className="mono muted">{Math.round(fast.f * 100)}%</span>
+                  <button className="btn sm" onClick={() => stopper.current?.abort()}><Square size={12} /> Stop</button></div>
+              </div>
+              <div className="progress"><i style={{ width: `${fast.f * 100}%` }} /></div>
+              <span className="faint small">Fast export: drawn and encoded in this window. Keep Retake open until it finishes.</span>
+            </div>
+          )}
           {rendering && (
             <div className="card pad col rise" style={{ gap: 12 }}>
               <div className="spread"><h3>{msg}</h3><span className="mono muted">{Math.round((job.progress ?? 0) * 100)}%</span></div>
@@ -144,7 +181,9 @@ export default function Export({ p, setP, job, active, start }: Props) {
                   </div>
                   <button className="btn" onClick={() => api.reveal(last.file)}><FolderOpen size={16} /> Show file</button>
                 </div>
-                {last.leaks.length === 0 ? (
+                {(last as { engine?: string }).engine === "window" ? (
+                  <div className="pill" style={{ height: 34, borderRadius: 10, alignSelf: "flex-start" }}><Zap size={15} /> Fast export: blurs applied, read-back check not run</div>
+                ) : last.leaks.length === 0 ? (
                   <div className="pill ok" style={{ height: 34, borderRadius: 10, alignSelf: "flex-start" }}><ShieldCheck size={15} /> Read back after export: nothing private is readable</div>
                 ) : (
                   <div className="col" style={{ gap: 6 }}>

@@ -55,11 +55,12 @@ interface TextProps {
   selected: string | null;
   scale: number; // screen px per frame px, for dragging
   settle: boolean; // paused: show each item fully, not mid-animation
+  ghost?: boolean; // invisible handles over text the engine draws
   onSelect: (id: string) => void;
   onMove: (o: Overlay, commit: boolean) => void;
 }
 
-export const TextLayer = memo(function TextLayer({ items, t, W, H, looks, selected, scale, settle, onSelect, onMove }: TextProps) {
+export const TextLayer = memo(function TextLayer({ items, t, W, H, looks, selected, scale, settle, ghost, onSelect, onMove }: TextProps) {
   if (!looks) return null;
   return (
     <div className="layer">
@@ -68,7 +69,7 @@ export const TextLayer = memo(function TextLayer({ items, t, W, H, looks, select
         const st = looks.texts.find((s) => s.id === o.style) ?? looks.texts[0];
         const tt = settle ? Math.min(Math.max(t, o.start + Math.min(0.6, o.dur / 2)), o.start + o.dur - Math.min(0.25, o.dur / 2)) : t;
         const L = textLook(o, st, W, H, tt);
-        const ink = inkCss(L.em, st.outline, st.shadow, st.glow ? L.accent : undefined);
+        const ink = ghost ? { color: "transparent" } : inkCss(L.em, st.outline, st.shadow, st.glow ? L.accent : undefined);
         let shown = 0;
         const box = st.box;
         const down = (e: React.MouseEvent) => {
@@ -96,12 +97,12 @@ export const TextLayer = memo(function TextLayer({ items, t, W, H, looks, select
             transform: `translate(-50%, -50%) scale(${L.scale})`,
           }}>
             <div style={{
-              background: box ? hexA(L.accent, box.alpha) : undefined,
+              background: box && !ghost ? hexA(L.accent, box.alpha) : undefined,
               padding: box ? `${0.45 * box.pad * L.em}px ${box.pad * L.em}px` : 0,
               borderRadius: box ? box.radius * L.em : 0,
             }}>
               {L.lines.map((line, li) => (
-                <div key={li} style={{ ...fontCss(looks, L.font), fontSize: L.em, lineHeight: `${1.18 * L.em}px`, color: L.color, whiteSpace: "pre", textAlign: "center", ...ink }}>
+                <div key={li} style={{ ...fontCss(looks, L.font), fontSize: L.em, lineHeight: `${1.18 * L.em}px`, color: ghost ? "transparent" : L.color, whiteSpace: "pre", textAlign: "center", ...ink }}>
                   {line.split("").map((ch, ci) => {
                     shown++;
                     return shown <= L.chars ? ch : <span key={ci} style={{ color: "transparent", WebkitTextStroke: "0 transparent", textShadow: "none" }}>{ch}</span>;

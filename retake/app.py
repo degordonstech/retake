@@ -687,6 +687,90 @@ def proxy_file(pid: str, sid: str, request: Request) -> Response:
     raise HTTPException(404, "No preview copy yet")
 
 
+@app.get("/media/{pid}/source/{sid}")
+def source_file(pid: str, sid: str, request: Request) -> Response:
+    """The original recording, for exports made in the window."""
+    p = _project(pid)
+    try:
+        return _ranged(p.source_path(sid), request)
+    except KeyError:
+        raise HTTPException(404)
+
+
+@app.get("/api/projects/{pid}/blur-spans")
+def get_blur_spans(pid: str) -> dict:
+    """What to blur, per source: [start, end, x0, y0, x1, y1] in source pixels and seconds."""
+    from .privacy import blur_spans
+
+    p = _project(pid)
+    spans = blur_spans(p, p.read_json("privacy", "detections.json", default=[]) or [])
+    return {src: [[round(t0, 3), round(t1, 3), *[int(v) for v in box]] for t0, t1, box in rows] for src, rows in spans.items()}
+
+
+# Exports made in the window stream here in pieces, each at its byte position.
+_streams: dict[str, Path] = {}
+
+
+class StreamStart(BaseModel):
+    aspect: str = "16:9"
+
+
+@app.post("/api/projects/{pid}/stream-render")
+def stream_start(pid: str, body: StreamStart) -> dict:
+    from .render import _safe_name
+
+    p = _project(pid)
+    out_dir = p.folder / "Retake exports"
+    out_dir.mkdir(exist_ok=True)
+    stamp = time.strftime("%Y-%m-%d %H.%M.%S")
+    suffix = "" if body.aspect == "16:9" else f" ({body.aspect.replace(':', 'x')})"
+    out = out_dir / f"{_safe_name(p.data['name'])}{suffix} {stamp}.mp4"
+    out.write_bytes(b"")
+    token = new_id("st")
+    _streams[token] = out
+    return {"token": token, "file": str(out)}
+
+
+@app.put("/api/projects/{pid}/stream-render/{token}")
+async def stream_piece(pid: str, token: str, pos: int, request: Request) -> dict:
+    out = _streams.get(token)
+    if not out:
+        raise HTTPException(404, "Unknown export")
+    data = await request.body()
+    with open(out, "r+b") as f:
+        f.seek(pos)
+        f.write(data)
+    return {"ok": True}
+
+
+class StreamDone(BaseModel):
+    duration: float
+    width: int
+    height: int
+    fps: float
+
+
+@app.post("/api/projects/{pid}/stream-render/{token}/done")
+def stream_done(pid: str, token: str, body: StreamDone) -> dict:
+    """Finish an export made in the window: captions, chapters, and a record of it."""
+    from .render import chapters_text
+
+    out = _streams.pop(token, None)
+    if not out or not out.exists():
+        raise HTTPException(404, "Unknown export")
+    p = _project(pid)
+    words = captions.timeline_words(p, p.data["edit"]["clips"])
+    srt = out.with_suffix(".srt")
+    srt.write_text(captions.srt(words), encoding="utf-8")
+    chapters = chapters_text(p.data["edit"]["clips"], p.data["edit"].get("overlays", []))
+    out.with_suffix(".chapters.txt").write_text(chapters, encoding="utf-8")
+    result = {"file": str(out), "srt": str(srt), "duration": round(body.duration, 2), "width": body.width,
+              "height": body.height, "fps": body.fps, "created": time.time(), "chapters": chapters, "leaks": [],
+              "engine": "window"}
+    project.commit(p, lambda d: (d["renders"].insert(0, result), d.update(stage="done")))
+    return _full(project.by_id(pid))
+
+
 @app.get("/media/{pid}/thumbs/{sid}.jpg")
 def thumbs_file(pid: str, sid: str) -> Response:
     p = _project(pid)
