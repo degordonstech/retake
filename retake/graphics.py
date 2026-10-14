@@ -127,17 +127,43 @@ def caption(text: str, brand: dict, W: int, H: int) -> Image.Image:
 
 
 def _wrap(d, text: str, font, max_w: int) -> list[str]:
-    words, lines, cur = text.split(), [], ""
+    """Wrap to as few lines as fit, with the lines as even as possible
+    (no single word left hanging on the last line)."""
+    words = text.split()
+    if not words:
+        return []
+    greedy, cur = [], ""
     for w in words:
         trial = (cur + " " + w).strip()
         if d.textlength(trial, font=font) <= max_w or not cur:
             cur = trial
         else:
-            lines.append(cur)
+            greedy.append(cur)
             cur = w
-    if cur:
-        lines.append(cur)
-    return lines
+    greedy.append(cur)
+    n = len(greedy)
+    if n == 1:
+        return greedy
+    # Try every way to cut the words into n lines; keep the most even one that fits.
+    best, best_score = greedy, None
+
+    def splits(start: int, parts: int):
+        if parts == 1:
+            yield [words[start:]]
+            return
+        for k in range(start + 1, len(words) - parts + 2):
+            for rest in splits(k, parts - 1):
+                yield [words[start:k], *rest]
+
+    if len(words) <= 14:
+        for cand in splits(0, n):
+            widths = [d.textlength(" ".join(c), font=font) for c in cand]
+            if max(widths) > max_w:
+                continue
+            score = max(widths) - min(widths)
+            if best_score is None or score < best_score:
+                best, best_score = [" ".join(c) for c in cand], score
+    return best
 
 
 def render_overlay(o: dict, brand: dict, W: int, H: int) -> Image.Image:

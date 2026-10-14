@@ -13,7 +13,7 @@ from typing import Callable
 import numpy as np
 
 from . import media
-from .project import Project, new_id, offset_at
+from .project import Project, clip_dur, new_id, offset_at
 
 # --------------------------------------------------------------------- OCR --
 _engine = None
@@ -164,7 +164,7 @@ HOLD = 0.3   # seconds of blur either side of each sighting
 
 def scan(p: Project, settings: dict, on_progress: Callable[[float], None], log: Callable[[str], None]) -> list[dict]:
     """Every private thing on screen during the kept clips, grouped for review."""
-    clips = [c for c in p.data["edit"]["clips"] if p.take(c["take"])["video"]]
+    clips = [c for c in p.data["edit"]["clips"] if c.get("kind") != "title" and p.take(c["take"])["video"]]
     allowed = {a.lower() for a in p.data["privacy"].get("allowed", [])}
     words = settings.get("private_words") or []
     total = sum(c["b"] - c["a"] for c in clips) or 1

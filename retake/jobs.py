@@ -80,7 +80,11 @@ def run_prepare(p: Project, args: dict, progress: Progress, log: Callable[[str],
 
     for s in srcs:
         proxy = p.dir / "proxy" / f"{s['id']}.mp4"
-        if not proxy.exists():
+        src_path = p.source_path(s["id"])
+        s["native"] = media.plays_natively(src_path, s)
+        if s["native"]:
+            proxy = src_path  # played as it is; thumbnails come from the original
+        elif not proxy.exists():
             msg = f"Making a preview copy of {s['file']}"
             log(msg)
             base = done

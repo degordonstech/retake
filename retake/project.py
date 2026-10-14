@@ -90,7 +90,7 @@ class Project:
             "folder": str(self.folder),
             "updated": d.get("updated", d.get("created")),
             "stage": d.get("stage", "new"),
-            "duration": sum(c["b"] - c["a"] for c in d.get("edit", {}).get("clips", [])),
+            "duration": round(sum(clip_dur(c) for c in d.get("edit", {}).get("clips", [])), 2),
             "sources": len(d.get("sources", [])),
         }
 
@@ -222,6 +222,11 @@ def _take(voice: dict, video: dict | None) -> dict:
         "sync_score": None,
         "ready": False,
     }
+
+
+def clip_dur(c: dict) -> float:
+    """Length of a timeline clip: a stretch of a take, or a title card."""
+    return float(c.get("dur", 3)) if c.get("kind") == "title" else c["b"] - c["a"]
 
 
 def offset_at(take: dict, t: float) -> float:

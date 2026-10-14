@@ -248,7 +248,7 @@ def _ts(t: float, sep: str = ",") -> str:
 
 def captions_srt(p: Project, clips: list[dict]) -> str:
     """Captions for the kept words, timed to the edit, about 7 words a line."""
-    starts = timeline_starts([{**c, "a": 0, "b": _clip_dur(c)} if c.get("kind") == "title" else c for c in clips])
+    starts = timeline_starts(clips)
     cues: list[tuple[float, float, str]] = []
     cache: dict[str, list] = {}
     for c, st in zip(clips, starts):

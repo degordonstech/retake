@@ -37,7 +37,7 @@ def _full(p: Project) -> dict:
     d = dict(p.data)
     d["folder"] = str(p.folder)
     for s in d["sources"]:
-        s["proxy"] = (p.dir / "proxy" / f"{s['id']}.mp4").exists()
+        s["proxy"] = bool(s.get("native")) or (p.dir / "proxy" / f"{s['id']}.mp4").exists()
     return d
 
 
@@ -89,10 +89,25 @@ def pick_folder() -> dict:
 # -------------------------------------------------------------- projects ----
 @app.get("/api/projects")
 def list_projects() -> list:
-    out = []
+    out, seen = [], set()
     for item in config.list_projects():
         item = dict(item)
-        item["missing"] = not (Path(item["folder"]) / ".retake" / "project.json").exists()
+        f = Path(item["folder"]) / ".retake" / "project.json"
+        item["missing"] = not f.exists()
+        if not item["missing"]:
+            try:
+                import json as _json
+
+                real = _json.loads(f.read_text(encoding="utf-8")).get("id")
+            except (OSError, ValueError):
+                real = None
+            # The folder now holds a different project (it was reset): drop the old entry.
+            if real and real != item["id"]:
+                config.forget_project(item["id"])
+                continue
+        if item["folder"].lower() in seen:
+            continue
+        seen.add(item["folder"].lower())
         out.append(item)
     return out
 
@@ -400,8 +415,19 @@ def _ranged(path: Path, request: Request) -> Response:
 
 @app.get("/media/{pid}/proxy/{sid}.mp4")
 def proxy_file(pid: str, sid: str, request: Request) -> Response:
+    """The preview copy, or the original when the window can play it as it is."""
     p = _project(pid)
-    return _ranged(p.dir / "proxy" / f"{sid}.mp4", request)
+    proxy = p.dir / "proxy" / f"{sid}.mp4"
+    if proxy.exists():
+        return _ranged(proxy, request)
+    try:
+        src = p.source(sid)
+    except KeyError:
+        raise HTTPException(404)
+    path = p.source_path(sid)
+    if src.get("native") or media.plays_natively(path, src):
+        return _ranged(path, request)
+    raise HTTPException(404, "No preview copy yet")
 
 
 @app.get("/media/{pid}/thumbs/{sid}.jpg")

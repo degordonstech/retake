@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .media import HOP_S
-from .project import Project, new_id
+from .project import Project, clip_dur, new_id
 
 PAD_IN, PAD_OUT = 0.10, 0.18      # breathing room around kept words
 LONG_PAUSE, KEEP_OF_PAUSE = 0.9, 0.3
@@ -75,6 +75,9 @@ def split_at_offsets(p: Project, clips: list[dict]) -> list[dict]:
     """A clip must use one sync offset; split it where the offset jumps."""
     out: list[dict] = []
     for c in clips:
+        if c.get("kind") == "title":
+            out.append(c)
+            continue
         steps = [at for at, _ in p.take(c["take"])["offsets"][1:] if c["a"] < at < c["b"]]
         if not steps:
             out.append(c)
@@ -90,7 +93,7 @@ def timeline_starts(clips: list[dict]) -> list[float]:
     t, out = 0.0, []
     for c in clips:
         out.append(round(t, 3))
-        t += c["b"] - c["a"]
+        t += clip_dur(c)
     return out
 
 
@@ -98,9 +101,9 @@ def position_of(clips: list[dict], take: str, voice_t: float) -> float | None:
     """Where a moment of a take lands on the timeline, if it was kept."""
     t = 0.0
     for c in clips:
-        if c["take"] == take and c["a"] - 0.05 <= voice_t <= c["b"]:
+        if c.get("kind") != "title" and c["take"] == take and c["a"] - 0.05 <= voice_t <= c["b"]:
             return round(t + max(0.0, voice_t - c["a"]), 3)
-        t += c["b"] - c["a"]
+        t += clip_dur(c)
     return None
 
 

@@ -167,6 +167,20 @@ def waveform_peaks(db: np.ndarray, per_second: int = 50) -> list[int]:
     return [int(v) for v in np.clip((b - lo) / max(hi - lo, 1e-6) * 100, 0, 100)]
 
 
+PLAYABLE_VIDEO = {".mp4", ".m4v", ".mov", ".webm"}
+PLAYABLE_AUDIO = {".mp3", ".m4a", ".mp4", ".aac", ".wav", ".ogg", ".opus", ".webm"}
+
+
+def plays_natively(path: Path, info: dict) -> bool:
+    """Whether the app's browser engine can play the file as it is, so no
+    preview copy is needed (H.264 video, common audio formats)."""
+    ext = path.suffix.lower()
+    if info["has_video"]:
+        return (ext in PLAYABLE_VIDEO and info.get("vcodec") == "h264"
+                and (info.get("pix_fmt") or "yuv420p") in ("yuv420p", "yuvj420p"))
+    return ext in PLAYABLE_AUDIO
+
+
 def make_proxy(src: Path, dst: Path, duration: float, has_video: bool, on_progress: Callable[[float], None]) -> None:
     """Small H.264/AAC copy that every webview can play, for the editor preview."""
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -189,7 +203,9 @@ def make_thumbs(src: Path, dst: Path, duration: float, every: float = 2.0, heigh
     count = max(1, int(duration / every) + 1)
     cols = 20
     rows = (count + cols - 1) // cols
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(src),
+    # Keyframes only: far faster than decoding every frame, and close enough
+    # for little pictures on the timeline.
+    run(["ffmpeg", "-y", "-v", "error", "-skip_frame", "nokey", "-i", str(src),
          "-vf", f"fps=1/{every},scale=-2:{height},tile={cols}x{rows}",
          "-frames:v", "1", "-q:v", "6", str(dst)])
     return {"every": every, "cols": cols, "rows": rows, "height": height, "count": count}
