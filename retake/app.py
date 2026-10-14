@@ -7,6 +7,7 @@ import mimetypes
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,14 @@ app = FastAPI(title="Retake", version=__version__)
 WEB = Path(__file__).parent.parent / "web" / "dist"
 
 # Set by main.py when running inside the desktop window.
-window_api: dict[str, Any] = {"pick_folder": None}
+window_api: dict[str, Any] = {"pick_folder": None, "focus": None, "seen": 0.0}
+
+
+@app.middleware("http")
+async def _seen(request, call_next):
+    # The launcher watches this to tell a loaded window from a blank one.
+    window_api["seen"] = time.time()
+    return await call_next(request)
 
 
 def _project(pid: str) -> Project:
@@ -45,6 +53,15 @@ def _full(p: Project) -> dict:
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True, "version": __version__, "ffmpeg": media.have_ffmpeg(), "window": bool(window_api["pick_folder"])}
+
+
+@app.post("/api/focus")
+def focus() -> dict:
+    """A second launch asks the running app to come to the front."""
+    fn = window_api["focus"]
+    if fn:
+        fn()
+    return {"ok": bool(fn)}
 
 
 @app.get("/api/settings")
