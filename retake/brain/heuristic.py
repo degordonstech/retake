@@ -58,4 +58,4 @@ def propose(takes: list[dict], transcripts: dict[str, dict]) -> dict:
                 keep[-1]["to_word"] = ph["last"]
             else:
                 keep.append({"take": t["id"], "from_word": ph["first"], "to_word": ph["last"]})
-    return {"keep": keep, "chapters": chapters, "notes": [], "title": "", "description": ""}
+    return {"keep": keep, "chapters": chapters, "notes": [], "corrections": [], "title": "", "description": ""}

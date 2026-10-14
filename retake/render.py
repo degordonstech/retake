@@ -251,10 +251,14 @@ def captions_srt(p: Project, clips: list[dict]) -> str:
     starts = timeline_starts(clips)
     cues: list[tuple[float, float, str]] = []
     cache: dict[str, list] = {}
+    fixes = {(c["take"], c["word"]): c["text"] for c in (p.data.get("brain") or {}).get("corrections", [])}
     for c, st in zip(clips, starts):
         if c.get("kind") == "title":
             continue
-        words = cache.setdefault(c["take"], (p.read_json("takes", f"{c['take']}.json", default={}) or {}).get("words", []))
+        if c["take"] not in cache:
+            raw = (p.read_json("takes", f"{c['take']}.json", default={}) or {}).get("words", [])
+            cache[c["take"]] = [{**w, "w": fixes.get((c["take"], w["i"]), w["w"])} for w in raw]
+        words = cache[c["take"]]
         line: list[dict] = []
         for w in words:
             if w["s"] >= c["a"] - 0.02 and w["e"] <= c["b"] + 0.05:

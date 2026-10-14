@@ -26,6 +26,11 @@ export default function Transcript({ p, transcripts, clips, time, onSeek, onCut,
     (p.brain.notes ?? []).forEach((n) => m.set(`${n.take}:${n.word}`, n.note));
     return m;
   }, [p.brain.notes]);
+  const fixes = useMemo(() => {
+    const m = new Map<string, string>();
+    (p.brain.corrections ?? []).forEach((c) => m.set(`${c.take}:${c.word}`, c.text));
+    return m;
+  }, [p.brain.corrections]);
 
   // Highlight the word being spoken without re-rendering thousands of words.
   useEffect(() => {
@@ -140,15 +145,16 @@ export default function Transcript({ p, transcripts, clips, time, onSeek, onCut,
         {orderedTakes.map((t) => {
           const tr = transcripts[t.id];
           if (!tr) return null;
-          return <TakeWords key={t.id} take={t.id} name={t.name} kind={t.kind} tr={tr} clips={clips} sel={sel?.take === t.id ? sel : null} notes={notes} />;
+          return <TakeWords key={t.id} take={t.id} name={t.name} kind={t.kind} tr={tr} clips={clips} sel={sel?.take === t.id ? sel : null} notes={notes} fixes={fixes} />;
         })}
       </div>
     </>
   );
 }
 
-const TakeWords = memo(function TakeWords({ take, name, kind, tr, clips, sel, notes }: {
+const TakeWords = memo(function TakeWords({ take, name, kind, tr, clips, sel, notes, fixes }: {
   take: string; name: string; kind: "screen" | "camera" | "audio"; tr: Tr; clips: Clip[]; sel: Sel; notes: Map<string, string>;
+  fixes: Map<string, string>;
 }) {
   const I = ICON[kind];
   const kept = useMemo(() => tr.words.map((w) => wordKept(clips, take, w)), [tr, clips, take]);
@@ -164,11 +170,15 @@ const TakeWords = memo(function TakeWords({ take, name, kind, tr, clips, sel, no
         {tr.words.map((w, k) => {
           const gap = k > 0 ? w.s - tr.words[k - 1].e : 0;
           const note = notes.get(`${take}:${w.i}`);
+          const fixed = fixes.get(`${take}:${w.i}`);
           const cls = ["w", kept[k] ? "" : "cut", sel && k >= sel.i && k <= sel.j ? "sel" : "", note ? "note" : ""].join(" ");
           return (
             <span key={w.i}>
               {gap > 1.2 && <span className="gap">{gap.toFixed(1)}s</span>}
-              <span className={cls} data-k={`${take}:${w.i}`} title={note}>{w.w}</span>{" "}
+              <span className={cls} data-k={`${take}:${w.i}`} title={note ?? (fixed ? `Heard as "${w.w}"` : undefined)}
+                style={fixed ? { textDecorationLine: kept[k] ? "underline" : "line-through", textDecorationStyle: "dotted", textDecorationColor: "var(--ok)" } : undefined}>
+                {fixed ?? w.w}
+              </span>{" "}
             </span>
           );
         })}

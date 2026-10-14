@@ -64,6 +64,7 @@ export interface Edit {
 export interface BrainResult {
   chapters?: { title: string; take: string; word: number }[];
   notes?: { take: string; word: number; note: string }[];
+  corrections?: { take: string; word: number; text: string }[];
   title?: string;
   description?: string;
   source?: string;

@@ -57,10 +57,24 @@ SCHEMA: dict = {
                 "additionalProperties": False,
             },
         },
+        "corrections": {
+            "type": "array",
+            "description": "Words the transcription misheard, with the right spelling, for captions.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "take": {"type": "string"},
+                    "word": {"type": "integer"},
+                    "text": {"type": "string"},
+                },
+                "required": ["take", "word", "text"],
+                "additionalProperties": False,
+            },
+        },
         "title": {"type": "string"},
         "description": {"type": "string"},
     },
-    "required": ["keep", "chapters", "notes", "title", "description"],
+    "required": ["keep", "chapters", "notes", "corrections", "title", "description"],
     "additionalProperties": False,
 }
 
@@ -86,6 +100,9 @@ Chapters: 5 to 14 short titles in sentence case, each at the first kept word of 
 Title: a curious, specific YouTube title, under 70 characters, no clickbait words, no emojis.
 Description: two short plain paragraphs about what the video shows. No emojis, no hashtags, no em dashes.
 Notes: anything the creator should double-check, each tied to a word index.
+Corrections: words the transcription clearly misheard, for the captions, each as the word index and the right text
+(for example product names: "cloud code" said as "Claude Code" means word "cloud" -> "Claude"). Only kept words, only when sure,
+one word each, keeping its punctuation.
 Word indices are per take. A span is inclusive. Never invent words: you can only keep words that are in the transcript."""
 
 
@@ -145,12 +162,19 @@ def clean(result: dict, takes: list[dict], transcripts: dict[str, dict], source:
             keep.append({"take": k["take"], "from_word": a, "to_word": b})
     chapters = [c for c in result.get("chapters", []) if c.get("take") in ids and c.get("title")]
     notes = [n for n in result.get("notes", []) if n.get("take") in ids and n.get("note")]
+    corrections = []
+    for c in result.get("corrections", []) or []:
+        tr = transcripts.get(c.get("take"))
+        text = str(c.get("text", "")).strip()
+        if tr and text and 0 <= int(c.get("word", -1)) < len(tr["words"]) and len(text) <= 40:
+            corrections.append({"take": c["take"], "word": int(c["word"]), "text": text})
     return {
         "keep": keep,
         "chapters": chapters,
         "notes": notes,
         "title": (result.get("title") or "").strip(),
         "description": (result.get("description") or "").strip(),
+        "corrections": corrections,
         "source": source,
     }
 

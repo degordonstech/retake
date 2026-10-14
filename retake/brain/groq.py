@@ -22,7 +22,7 @@ def ask(system: str, prompt: str, schema: dict, settings: dict) -> dict:
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system + "\n\nAnswer with one JSON object only, with the keys: "
-                                                   "keep, chapters, notes, title, description."},
+                                                   "keep, chapters, notes, corrections, title, description."},
             {"role": "user", "content": prompt},
         ],
     }

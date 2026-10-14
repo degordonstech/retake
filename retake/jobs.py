@@ -149,7 +149,7 @@ def run_autoedit(p: Project, args: dict, progress: Progress, log: Callable[[str]
     for i, o in enumerate(overlays, 1):
         o["tag"] = f"STEP {i:02d}"
     new_edit = {"clips": clips, "overlays": overlays}
-    new_brain = {k: result[k] for k in ("chapters", "notes", "title", "description", "source")}
+    new_brain = {k: result[k] for k in ("chapters", "notes", "corrections", "title", "description", "source")}
     kept = sum(c["b"] - c["a"] for c in clips)
     raw = sum(t["duration"] for t in takes)
     log(f"First cut ready: {kept / 60:.1f} min kept from {raw / 60:.1f} min recorded, {len(clips)} clips")
