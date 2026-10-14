@@ -9,3 +9,4 @@ httpx>=0.27
 anthropic>=1.0
 winocr>=0.0.15 ; sys_platform == "win32"
 rapidocr-onnxruntime>=1.3 ; sys_platform != "win32"
+fonttools>=4.40

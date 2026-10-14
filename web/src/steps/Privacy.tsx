@@ -4,7 +4,7 @@ import { api, media } from "../api";
 import type { Detection, Job, Manual, Project } from "../types";
 import { clamp, fmtTime } from "../util";
 import { Empty, Modal, useToast } from "../ui";
-import { isTitle, locate, offsetAt, starts, totalDuration } from "../editor/model";
+import { isTitle, locate, offsetAt, speedOf, srcAt, starts, totalDuration } from "../editor/model";
 
 interface Props {
   p: Project;
@@ -25,7 +25,7 @@ function editTime(p: Project, src: string, t: number): number | null {
     if (!take || take.video !== src) continue;
     const off = take.video === take.voice ? 0 : offsetAt(take, c.a);
     const vt = t - off;
-    if (vt >= c.a - 0.05 && vt <= c.b + 0.05) return st[i] + Math.max(0, vt - c.a);
+    if (vt >= c.a - 0.05 && vt <= c.b + 0.05) return st[i] + Math.max(0, vt - c.a) / speedOf(c);
   }
   return null;
 }
@@ -192,7 +192,7 @@ function DrawBlur({ p, onClose, onSave }: { p: Project; onClose: () => void; onS
   const c = p.edit.clips[index];
   const take = c && !isTitle(c) ? p.takes.find((x) => x.id === c.take) : undefined;
   const src = take?.video ?? null;
-  const vt = c && !isTitle(c) && take ? c.a + local + (take.video === take.voice ? 0 : offsetAt(take, c.a)) : 0;
+  const vt = c && !isTitle(c) && take ? srcAt(c, local) + (take.video === take.voice ? 0 : offsetAt(take, c.a)) : 0;
   const size = src ? srcSize(p, src) : { w: 1920, h: 1080 };
 
   const down = (e: React.MouseEvent) => {

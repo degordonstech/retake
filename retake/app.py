@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, config, graphics, jobs, media, project
+from . import __version__, assets, captions, config, graphics, jobs, looks, media, project
 from .brain import claude_code
 from .project import Project, guess_takes, new_id
 
@@ -24,7 +24,7 @@ app = FastAPI(title="Retake", version=__version__)
 WEB = Path(__file__).parent.parent / "web" / "dist"
 
 # Set by main.py when running inside the desktop window.
-window_api: dict[str, Any] = {"pick_folder": None, "focus": None, "seen": 0.0}
+window_api: dict[str, Any] = {"pick_folder": None, "pick_files": None, "focus": None, "seen": 0.0}
 
 
 @app.middleware("http")
@@ -46,6 +46,11 @@ def _full(p: Project) -> dict:
     d["folder"] = str(p.folder)
     for s in d["sources"]:
         s["proxy"] = bool(s.get("native")) or (p.dir / "proxy" / f"{s['id']}.mp4").exists()
+    d["assets"] = [{**a, "ready": assets.preview_path(p, a) is not None, "missing": not Path(a["file"]).exists()}
+                   for a in d.get("assets", [])]
+    ed = d.setdefault("edit", {})
+    for k in ("overlays", "media", "audio"):
+        ed.setdefault(k, [])
     return d
 
 
@@ -62,6 +67,19 @@ def focus() -> dict:
     if fn:
         fn()
     return {"ok": bool(fn)}
+
+
+@app.get("/api/looks")
+def get_looks() -> dict:
+    return looks.all_looks()
+
+
+@app.get("/fonts/{name}")
+def font_file(name: str) -> Response:
+    f = captions.FONT_DIR / Path(name).name
+    if not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, media_type="font/ttf", headers={"Cache-Control": "max-age=86400"})
 
 
 @app.get("/api/settings")
@@ -251,6 +269,13 @@ def nudge_take(pid: str, tid: str, body: Nudge) -> dict:
 class EditBody(BaseModel):
     clips: list[dict]
     overlays: list[dict]
+    media: list[dict] = []
+    audio: list[dict] = []
+    captions: dict | None = None
+    format: dict | None = None
+
+
+CLIP_EXTRA = ("speed", "volume", "mute", "filter", "adjust", "frame", "transition")
 
 
 @app.put("/api/projects/{pid}/edit")
@@ -261,7 +286,8 @@ def save_edit(pid: str, body: EditBody) -> dict:
         if c.get("kind") == "title":
             clean_clips.append({"id": c.get("id") or new_id("c"), "kind": "title", "text": str(c.get("text", "")),
                                 "sub": str(c.get("sub", "")), "tag": str(c.get("tag", "")),
-                                "dur": max(0.5, float(c.get("dur", 3)))})
+                                "dur": max(0.5, float(c.get("dur", 3))),
+                                **({"transition": c["transition"]} if c.get("transition") else {})})
             continue
         try:
             take = p.take(c["take"])
@@ -269,8 +295,13 @@ def save_edit(pid: str, body: EditBody) -> dict:
             continue
         a, b = max(0.0, float(c["a"])), min(float(c["b"]), take["duration"])
         if b - a > 0.04:
-            clean_clips.append({"id": c.get("id") or new_id("c"), "take": c["take"], "a": round(a, 3), "b": round(b, 3)})
-    p.data["edit"] = {"clips": clean_clips, "overlays": body.overlays}
+            extra = {k: c[k] for k in CLIP_EXTRA if c.get(k) not in (None, "", {})}
+            if "speed" in extra:
+                extra["speed"] = min(4.0, max(0.25, float(extra["speed"])))
+            clean_clips.append({"id": c.get("id") or new_id("c"), "take": c["take"], "a": round(a, 3), "b": round(b, 3),
+                                **extra})
+    p.data["edit"] = {"clips": clean_clips, "overlays": body.overlays, "media": body.media, "audio": body.audio,
+                      "captions": body.captions or {}, "format": body.format or {"aspect": "16:9"}}
     p.save()
     return {"ok": True, "updated": p.data["updated"]}
 
@@ -301,6 +332,195 @@ def get_output(pid: str) -> dict:
 
     W, H, fps = output_format(p)
     return {**p.data["output"], "auto": {"width": W, "height": H, "fps": fps}}
+
+
+class Correction(BaseModel):
+    take: str
+    word: int
+    text: str
+
+
+@app.post("/api/projects/{pid}/corrections")
+def correct_word(pid: str, body: Correction) -> dict:
+    """Spell a word differently in captions (empty text undoes it)."""
+    p = _project(pid)
+
+    def fix(d: dict) -> None:
+        brain = d.setdefault("brain", {})
+        rows = [c for c in brain.get("corrections", []) if not (c["take"] == body.take and c["word"] == body.word)]
+        if body.text.strip():
+            rows.append({"take": body.take, "word": body.word, "text": body.text.strip()[:40]})
+        brain["corrections"] = rows
+
+    project.commit(p, fix)
+    return _full(p)
+
+
+class LayoutBody(BaseModel):
+    clips: list[dict]
+    captions: dict | None = None
+    format: dict | None = None
+
+
+@app.post("/api/projects/{pid}/captions/layout")
+def caption_layout(pid: str, body: LayoutBody) -> dict:
+    """Where every caption word goes, for the preview (same as the export)."""
+    p = _project(pid)
+    p.data["edit"] = {**p.data["edit"], "clips": body.clips, "format": body.format or {}}
+    from .render import output_format
+
+    W, H, _ = output_format(p)
+    words = captions.timeline_words(p, body.clips)
+    lay = captions.layout(words, body.captions or {}, W, H)
+    return {"width": W, "height": H, **lay}
+
+
+class TextLayout(BaseModel):
+    overlays: list[dict]
+    format: dict | None = None
+
+
+@app.post("/api/projects/{pid}/text/layout")
+def text_layout(pid: str, body: TextLayout) -> dict:
+    p = _project(pid)
+    p.data["edit"] = {**p.data["edit"], "format": body.format or {}}
+    from .render import output_format
+
+    W, H, _ = output_format(p)
+    out = {}
+    for o in body.overlays:
+        if o.get("kind") == "text":
+            L = captions.text_layout(o, W, H)
+            out[o["id"]] = {"em": L["em"], "lh": L["lh"], "lines": L["lines"], "widths": L["widths"], "font": L["font"]}
+    return {"width": W, "height": H, "items": out}
+
+
+# ---------------------------------------------------------------- assets ----
+class Paths(BaseModel):
+    paths: list[str]
+
+
+@app.post("/api/projects/{pid}/assets")
+def import_assets(pid: str, body: Paths) -> dict:
+    p = _project(pid)
+    added = assets.add(p, body.paths)
+    return {"added": [a["id"] for a in added], "project": _full(project.by_id(pid))}
+
+
+@app.post("/api/projects/{pid}/assets/pick")
+def pick_assets(pid: str) -> dict:
+    fn = window_api["pick_files"]
+    if not fn:
+        raise HTTPException(400, "Choosing files needs the desktop window. Drag files in, or paste their paths.")
+    paths = fn() or []
+    return import_assets(pid, Paths(paths=list(paths)))
+
+
+@app.delete("/api/projects/{pid}/assets/{aid}")
+def delete_asset(pid: str, aid: str) -> dict:
+    p = _project(pid)
+    assets.remove(p, aid)
+    return _full(project.by_id(pid))
+
+
+@app.get("/media/{pid}/asset/{aid}")
+def asset_file(pid: str, aid: str, request: Request) -> Response:
+    p = _project(pid)
+    a = next((x for x in p.data.get("assets", []) if x["id"] == aid), None)
+    if not a:
+        raise HTTPException(404)
+    path = assets.preview_path(p, a)
+    if not path:
+        raise HTTPException(404, "Preview copy not ready yet")
+    return _ranged(path, request)
+
+
+@app.get("/api/sfx")
+def sfx_list() -> list:
+    from . import sfx
+
+    return sfx.catalog()
+
+
+@app.get("/sfx/{name}.wav")
+def sfx_file(name: str) -> Response:
+    from . import sfx
+
+    try:
+        return FileResponse(sfx.path(name), media_type="audio/wav")
+    except KeyError:
+        raise HTTPException(404)
+
+
+@app.post("/api/projects/{pid}/sfx/{name}")
+def add_sfx(pid: str, name: str) -> dict:
+    """Put a built-in sound in the project's media, ready to place."""
+    from . import sfx
+
+    p = _project(pid)
+    try:
+        f = str(sfx.path(name))
+    except KeyError:
+        raise HTTPException(404, "No such sound")
+    existing = next((a for a in p.data.get("assets", []) if a["file"].lower() == f.lower()), None)
+    if not existing:
+        added = assets.add(p, [f])
+        if not added:
+            raise HTTPException(500, "Couldn't add that sound")
+        existing = added[0]
+        label = dict((k, v[0]) for k, v in sfx.SOUNDS.items())[name]
+
+        def rename(d: dict) -> None:
+            for a in d.get("assets", []):
+                if a["id"] == existing["id"]:
+                    a["name"] = label
+                    a["sfx"] = True
+
+        project.commit(p, rename)
+    return {"asset": existing["id"], "project": _full(project.by_id(pid))}
+
+
+@app.get("/media/{pid}/asset/{aid}/peaks")
+def asset_peaks(pid: str, aid: str) -> dict:
+    """Loudness, 50 values a second, for drawing a sound's waveform."""
+    import json as _json
+
+    p = _project(pid)
+    a = next((x for x in p.data.get("assets", []) if x["id"] == aid), None)
+    if not a or not (a["kind"] == "audio" or a.get("has_audio")):
+        raise HTTPException(404)
+    f = p.dir / "thumbs" / f"{aid}.peaks.json"
+    if f.exists():
+        return _json.loads(f.read_text(encoding="utf-8"))
+    x = media.load_audio(Path(a["file"]))
+    out = {"per": 50, "peaks": media.waveform_peaks(media.level_db(x), 50)}
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(_json.dumps(out), encoding="utf-8")
+    return out
+
+
+@app.get("/media/{pid}/asset/{aid}/thumb.jpg")
+def asset_thumb(pid: str, aid: str) -> Response:
+    p = _project(pid)
+    a = next((x for x in p.data.get("assets", []) if x["id"] == aid), None)
+    if not a or a["kind"] == "audio":
+        raise HTTPException(404)
+    f = p.dir / "thumbs" / f"{aid}.jpg"
+    if not f.exists():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if a["kind"] == "image":
+                from PIL import Image
+
+                with Image.open(a["file"]) as im:
+                    im = im.convert("RGB")
+                    im.thumbnail((320, 320))
+                    im.save(f, "JPEG", quality=82)
+            else:
+                f.write_bytes(media.frame_at(Path(a["file"]), min(1.0, (a.get("duration") or 2) / 3), 320))
+        except (OSError, media.MediaError) as e:
+            raise HTTPException(404, str(e)[:200])
+    return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
 
 
 # ------------------------------------------------------------------ jobs ----

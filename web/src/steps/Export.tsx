@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, FileText, FolderOpen, Loader2, Rocket, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Captions, Check, Copy, FileText, FolderOpen, Loader2, Rocket, ShieldAlert, ShieldCheck } from "lucide-react";
 import { api, media } from "../api";
 import type { Job, Project } from "../types";
 import { ago, fmtDuration, fmtTime } from "../util";
 import { useToast } from "../ui";
-import { totalDuration } from "../editor/model";
+import { normalize, totalDuration } from "../editor/model";
+import type { FormatSettings } from "../types";
+
+const SHAPES: [string, string, string][] = [
+  ["16:9", "YouTube", "Landscape 16:9"],
+  ["9:16", "Shorts, TikTok, Reels", "Portrait 9:16"],
+  ["1:1", "Square", "1:1 for feeds"],
+  ["4:5", "Instagram feed", "Portrait 4:5"],
+];
 
 interface Props {
   p: Project;
@@ -24,7 +32,7 @@ function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
   );
 }
 
-export default function Export({ p, job, active, start }: Props) {
+export default function Export({ p, setP, job, active, start }: Props) {
   const toast = useToast();
   const [out, setOut] = useState<{ fps: number; quality: string; auto: { width: number; height: number; fps: number } } | null>(null);
   const rendering = active && job.kind === "render";
@@ -35,6 +43,16 @@ export default function Export({ p, job, active, start }: Props) {
   const save = async (o: { fps?: number; quality?: string }) => {
     try { setOut(await api.saveOutput(p.id, o)); } catch (e) { toast((e as Error).message, "bad"); }
   };
+  const fmt = p.edit.format ?? { aspect: "16:9" };
+  const setFormat = async (f: Partial<FormatSettings>) => {
+    const edit = { ...normalize(p.edit), format: { ...fmt, ...f } };
+    try {
+      await api.saveEdit(p.id, edit);
+      setP({ ...p, edit });
+      setOut(await api.output(p.id));
+    } catch (e) { toast((e as Error).message, "bad"); }
+  };
+  const caps = p.edit.captions;
 
   const phases = ["Re-checking privacy", "Cutting clip", "Finishing", "Checking for leaks"];
   const msg = job.message ?? "";
@@ -46,7 +64,7 @@ export default function Export({ p, job, active, start }: Props) {
         <div className="col" style={{ gap: 6 }}>
           <span className="eyebrow">Step 4</span>
           <h1>Export</h1>
-          <p className="muted">{fmtDuration(total)} · {p.edit.clips.length} clips · {p.edit.overlays.length} graphics</p>
+          <p className="muted">{fmtDuration(total)} · {p.edit.clips.length} clips · {p.edit.overlays.length} text and graphics · {(p.edit.media ?? []).length} overlays · {(p.edit.audio ?? []).length} sounds</p>
         </div>
         <button className="btn primary lg" onClick={() => start("render")} disabled={rendering || !p.edit.clips.length}>
           {rendering ? <Loader2 size={18} className="spin" /> : <Rocket size={18} />} {rendering ? "Exporting" : last ? "Export again" : "Export video"}
@@ -56,6 +74,28 @@ export default function Export({ p, job, active, start }: Props) {
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 18, alignItems: "start" }}>
         <section className="card pad col" style={{ gap: 18 }}>
           <h3>Output</h3>
+          <label className="field">
+            Shape
+            <div className="col" style={{ gap: 6 }}>
+              {SHAPES.map(([v, name, sub]) => (
+                <button key={v} className={`shape ${(fmt.aspect ?? "16:9") === v ? "on" : ""}`} onClick={() => setFormat({ aspect: v })}>
+                  <span className={`ar ar-${v.replace(":", "x")}`} />
+                  <span className="col" style={{ gap: 0, alignItems: "flex-start" }}><b className="small">{name}</b><span className="faint tiny">{sub}</span></span>
+                  {(fmt.aspect ?? "16:9") === v && <Check size={15} style={{ marginLeft: "auto" }} />}
+                </button>
+              ))}
+            </div>
+          </label>
+          <div className="col" style={{ gap: 8 }}>
+            <label className="row small muted" style={{ gap: 8, cursor: "pointer" }} onClick={() => setFormat({ fadeIn: !fmt.fadeIn })}>
+              <span className={`switch ${fmt.fadeIn ? "on" : ""}`} /> Fade in from black
+            </label>
+            <label className="row small muted" style={{ gap: 8, cursor: "pointer" }} onClick={() => setFormat({ fadeOut: !fmt.fadeOut })}>
+              <span className={`switch ${fmt.fadeOut ? "on" : ""}`} /> Fade out at the end
+            </label>
+          </div>
+          <span className="row small" style={{ gap: 8 }}><Captions size={15} color={caps?.on ? "var(--ok)" : "var(--text-3)"} />
+            {caps?.on ? "Animated captions are burned in" : "No burned-in captions (turn them on in the editor)"}</span>
           <label className="field">
             Quality
             <div className="seg">
@@ -71,7 +111,7 @@ export default function Export({ p, job, active, start }: Props) {
               {[24, 25, 30, 50, 60].map((f) => <option key={f} value={f}>{f} fps</option>)}
             </select>
           </label>
-          {out && <span className="faint small">{out.auto.width}×{out.auto.height}, H.264 with AAC sound, loudness levelled for YouTube. Captions (.srt) and a chapters list are saved next to it.</span>}
+          {out && <span className="faint small">{out.auto.width}×{out.auto.height} at {out.auto.fps} fps, H.264 with AAC sound, loudness levelled for YouTube. Captions (.srt) and a chapters list are saved next to it.</span>}
           <div className="divider" />
           <div className="col" style={{ gap: 6 }}>
             <span className="row small" style={{ gap: 8 }}><ShieldCheck size={15} color="var(--privacy)" /> Privacy is re-checked first if the edit changed</span>
@@ -95,7 +135,7 @@ export default function Export({ p, job, active, start }: Props) {
 
           {last ? (
             <div className="card" style={{ overflow: "hidden" }}>
-              <video key={last.file} src={media.render(p.id, 0)} controls style={{ width: "100%", display: "block", background: "#000", aspectRatio: "16/9" }} />
+              <video key={last.file} src={media.render(p.id, 0)} controls style={{ width: "100%", display: "block", background: "#000", aspectRatio: `${last.width}/${last.height}`, maxHeight: 560 }} />
               <div className="col" style={{ padding: 18, gap: 14 }}>
                 <div className="spread">
                   <div className="col" style={{ gap: 3 }}>

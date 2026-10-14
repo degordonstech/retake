@@ -28,12 +28,39 @@ export interface Take {
   ready: boolean;
 }
 
+export interface Adjust {
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
+  vignette?: number;
+  sharpen?: number;
+}
+export interface Framing {
+  mode?: "fit" | "fill";
+  zoom?: number;
+  zoomTo?: number;
+  x?: number;
+  y?: number;
+  bg?: "color" | "blur";
+}
+export interface Transition {
+  type: string;
+  dur: number;
+}
 export interface MediaClip {
   id: string;
   take: string;
   a: number;
   b: number;
   kind?: undefined;
+  speed?: number;
+  volume?: number;
+  mute?: boolean;
+  filter?: string;
+  adjust?: Adjust;
+  frame?: Framing;
+  transition?: Transition;
 }
 export interface TitleClip {
   id: string;
@@ -42,23 +69,134 @@ export interface TitleClip {
   sub: string;
   tag: string;
   dur: number;
+  transition?: Transition;
 }
 export type Clip = MediaClip | TitleClip;
 
 export interface Overlay {
   id: string;
-  kind: "label" | "lower" | "caption";
+  kind: "label" | "lower" | "caption" | "text";
   text: string;
   sub?: string;
   tag?: string;
   start: number;
   dur: number;
   chapter?: boolean;
+  // Styled text ("text" kind)
+  style?: string;
+  font?: string;
+  size?: number;
+  color?: string;
+  accent?: string;
+  upper?: boolean | null;
+  x?: number;
+  y?: number;
+  anim?: string;
+  out?: string;
+}
+
+export interface MediaItem {
+  id: string;
+  asset: string;
+  start: number;
+  dur: number;
+  in?: number;
+  mode?: "full" | "pip";
+  x?: number;
+  y?: number;
+  scale?: number;
+  radius?: number;
+  opacity?: number;
+  anim?: string;
+  volume?: number;
+}
+
+export interface AudioItem {
+  id: string;
+  asset: string;
+  start: number;
+  dur: number;
+  in?: number;
+  volume?: number;
+  fadeIn?: number;
+  fadeOut?: number;
+  duck?: boolean;
+  loop?: boolean;
+}
+
+export interface CaptionSettings {
+  on?: boolean;
+  template?: string;
+  scale?: number;
+  y?: number;
+  color?: string;
+  hi?: string;
+  font?: string;
+  upper?: boolean | null;
+  words?: number;
+  lines?: number;
+}
+
+export interface FormatSettings {
+  aspect?: string;
+  fadeIn?: boolean;
+  fadeOut?: boolean;
 }
 
 export interface Edit {
   clips: Clip[];
   overlays: Overlay[];
+  media: MediaItem[];
+  audio: AudioItem[];
+  captions?: CaptionSettings;
+  format?: FormatSettings;
+}
+
+export interface Asset {
+  id: string;
+  file: string;
+  name: string;
+  kind: "image" | "video" | "audio";
+  width?: number;
+  height?: number;
+  duration?: number;
+  has_audio?: boolean;
+  ready?: boolean;
+  missing?: boolean;
+  sfx?: boolean;
+  size?: number;
+}
+
+/* Looks served by the engine (same numbers as the export). */
+export interface Stroke { color: string; w: number }
+export interface Shadow { y: number; alpha: number }
+export interface BoxLook { color: string; alpha: number; pad: number; radius: number }
+export interface CaptionTemplate {
+  id: string; name: string; font: string; size: number; upper?: boolean; strip?: boolean;
+  color: string; hi: string; hi_text?: string; alt?: string[];
+  outline?: Stroke; shadow?: Shadow; box?: BoxLook;
+  words: number; lines: number; y: number; mode: string; grow?: number; past?: string; enter?: string;
+}
+export interface TextStyle {
+  id: string; name: string; font: string; size: number; upper?: boolean; color: string;
+  outline?: Stroke; shadow?: Shadow; box?: BoxLook; glow?: string;
+}
+export interface Looks {
+  fonts: Record<string, { css: string; weight: number; file: string }>;
+  captions: CaptionTemplate[];
+  texts: TextStyle[];
+  textAnims: string[];
+  filters: { id: string; name: string; adj: Adjust }[];
+  transitions: { id: string; name: string; xfade: string }[];
+  aspects: Record<string, [number, number]>;
+}
+export interface CaptionWord { t: string; s: number; e: number; cx: number; cy: number; w: number }
+export interface CaptionPage { t0: number; t1: number; words: CaptionWord[]; scale: number; box: number[] }
+export interface CaptionLayout {
+  width: number;
+  height: number;
+  style: CaptionTemplate & { em: number; pad: number; lh: number };
+  pages: CaptionPage[];
 }
 
 export interface BrainResult {
@@ -94,6 +232,7 @@ export interface Project {
   edit: Edit;
   privacy: { dismissed?: string[]; manual?: Manual[]; scanned?: number };
   brain: BrainResult;
+  assets: Asset[];
   output: { fps: number; quality: "high" | "standard" | "small" };
   renders: RenderResult[];
 }

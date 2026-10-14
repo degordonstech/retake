@@ -153,7 +153,12 @@ def run_autoedit(p: Project, args: dict, progress: Progress, log: Callable[[str]
     kept = sum(c["b"] - c["a"] for c in clips)
     raw = sum(t["duration"] for t in takes)
     log(f"First cut ready: {kept / 60:.1f} min kept from {raw / 60:.1f} min recorded, {len(clips)} clips")
-    commit(p, lambda d: d.update(edit=new_edit, brain=new_brain, stage="edit"))
+    def keep_rest(d: dict) -> None:
+        # A new cut replaces clips and chapters; captions, shape, media and music stay.
+        d["edit"] = {**d.get("edit", {}), **new_edit}
+        d.update(brain=new_brain, stage="edit")
+
+    commit(p, keep_rest)
     progress(1.0, "First cut ready")
 
 

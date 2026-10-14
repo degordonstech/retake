@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .media import HOP_S
-from .project import Project, clip_dur, new_id
+from .project import Project, clip_dur, clip_speed, new_id
 
 PAD_IN, PAD_OUT = 0.10, 0.18      # breathing room around kept words
 LONG_PAUSE, KEEP_OF_PAUSE = 0.9, 0.3
@@ -102,7 +102,7 @@ def position_of(clips: list[dict], take: str, voice_t: float) -> float | None:
     t = 0.0
     for c in clips:
         if c.get("kind") != "title" and c["take"] == take and c["a"] - 0.05 <= voice_t <= c["b"]:
-            return round(t + max(0.0, voice_t - c["a"]), 3)
+            return round(t + max(0.0, voice_t - c["a"]) / clip_speed(c), 3)
         t += clip_dur(c)
     return None
 

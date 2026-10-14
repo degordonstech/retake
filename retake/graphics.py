@@ -52,7 +52,7 @@ def _fit(d: ImageDraw.ImageDraw, text: str, font_fn, size: int, max_w: int, weig
 
 def label(text: str, tag: str, brand: dict, W: int, H: int) -> Image.Image:
     """Top-left chapter label: small coloured tag over a bold title."""
-    s = H / 1080
+    s = min(W, H) / 1080
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     f_tag = mono(int(26 * s))
@@ -70,7 +70,7 @@ def label(text: str, tag: str, brand: dict, W: int, H: int) -> Image.Image:
 
 
 def lower_third(title: str, sub: str, kicker: str, brand: dict, W: int, H: int) -> Image.Image:
-    s = H / 1080
+    s = min(W, H) / 1080
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     f_k, f_s = mono(int(24 * s)), grotesk(int(30 * s), 500)
@@ -92,7 +92,7 @@ def lower_third(title: str, sub: str, kicker: str, brand: dict, W: int, H: int) 
 
 
 def title_card(title: str, sub: str, kicker: str, brand: dict, W: int, H: int) -> Image.Image:
-    s = H / 1080
+    s = min(W, H) / 1080
     img = Image.new("RGBA", (W, H), _rgb(brand["background"]))
     d = ImageDraw.Draw(img)
     lines = _wrap(d, title, grotesk(int(104 * s)), int(W * 0.82))
@@ -113,7 +113,7 @@ def title_card(title: str, sub: str, kicker: str, brand: dict, W: int, H: int) -
 
 
 def caption(text: str, brand: dict, W: int, H: int) -> Image.Image:
-    s = H / 1080
+    s = min(W, H) / 1080
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     f = _fit(d, text, grotesk, int(54 * s), int(W * 0.84), 700)

@@ -146,6 +146,31 @@ def main() -> None:
         result = window.create_file_dialog(webview.FileDialog.FOLDER)
         return result[0] if result else None
 
+    def pick_files() -> list[str]:
+        kinds = ("Media (*.mp4;*.mov;*.mkv;*.webm;*.m4v;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.mp3;*.wav;*.m4a;*.aac;*.flac;*.ogg)",
+                 "All files (*.*)")
+        result = window.create_file_dialog(webview.FileDialog.OPEN, allow_multiple=True, file_types=kinds)
+        return list(result or [])
+
+    def on_drop(e: dict) -> None:
+        """Files dragged in from Explorer: hand their real paths to the page."""
+        import json
+
+        files = [f.get("pywebviewFullPath") for f in (e.get("dataTransfer") or {}).get("files", [])]
+        files = [f for f in files if f]
+        if files:
+            window.evaluate_js(f"window.dispatchEvent(new CustomEvent('retake-drop', {{detail: {json.dumps(files)}}}))")
+
+    def on_loaded() -> None:
+        try:
+            from webview.dom import DOMEventHandler
+
+            window.dom.document.events.drop += DOMEventHandler(on_drop, True, True)
+        except Exception:  # noqa: BLE001 - drag and drop is a nicety
+            log.exception("Couldn't listen for dropped files")
+
+    window.events.loaded += on_loaded
+
     def focus() -> None:
         window.restore()
         window.show()
@@ -154,6 +179,7 @@ def main() -> None:
 
     api.window_api["pick_folder"] = pick_folder
     api.window_api["focus"] = focus
+    api.window_api["pick_files"] = pick_files
     opened = time.time()
     fell_back = threading.Event()
 
@@ -162,7 +188,7 @@ def main() -> None:
         if api.window_api["seen"] < opened:
             log.error("The window didn't load in %d s, opening Retake in the browser instead", LOAD_TIMEOUT)
             fell_back.set()
-            api.window_api["pick_folder"] = api.window_api["focus"] = None
+            api.window_api["pick_folder"] = api.window_api["focus"] = api.window_api["pick_files"] = None
             webbrowser.open(url)
             window.destroy()
 

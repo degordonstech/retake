@@ -1,4 +1,4 @@
-import type { Detection, Edit, Job, Manual, Project, ProjectSummary, Settings, Transcript } from "./types";
+import type { CaptionLayout, CaptionSettings, Clip, Detection, Edit, FormatSettings, Job, Looks, Manual, Project, ProjectSummary, Settings, Transcript } from "./types";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -54,6 +54,16 @@ export const api = {
     "POST", `/api/projects/${id}/privacy/manual`, m),
   delManual: (id: string, mid: string) => call<{ detections: Detection[]; dismissed?: string[]; manual?: Manual[] }>(
     "DELETE", `/api/projects/${id}/privacy/manual/${mid}`),
+  looks: () => call<Looks>("GET", "/api/looks"),
+  sfx: () => call<{ id: string; name: string }[]>("GET", "/api/sfx"),
+  addSfx: (id: string, name: string) => call<{ asset: string; project: Project }>("POST", `/api/projects/${id}/sfx/${name}`),
+  peaks: (id: string, aid: string) => call<{ per: number; peaks: number[] }>("GET", `/media/${id}/asset/${aid}/peaks`),
+  correct: (id: string, take: string, word: number, text: string) => call<Project>("POST", `/api/projects/${id}/corrections`, { take, word, text }),
+  captionLayout: (id: string, body: { clips: Clip[]; captions?: CaptionSettings; format?: FormatSettings }) =>
+    call<CaptionLayout>("POST", `/api/projects/${id}/captions/layout`, body),
+  importAssets: (id: string, paths: string[]) => call<{ added: string[]; project: Project }>("POST", `/api/projects/${id}/assets`, { paths }),
+  pickAssets: (id: string) => call<{ added: string[]; project: Project }>("POST", `/api/projects/${id}/assets/pick`),
+  deleteAsset: (id: string, aid: string) => call<Project>("DELETE", `/api/projects/${id}/assets/${aid}`),
   openExports: (id: string) => call<{ ok: boolean }>("POST", `/api/projects/${id}/open-exports`),
   reveal: (path: string) => call<{ ok: boolean }>("POST", "/api/reveal", { path }),
 };
@@ -63,7 +73,9 @@ export const media = {
   thumbs: (pid: string, sid: string) => `/media/${pid}/thumbs/${sid}.jpg`,
   frame: (pid: string, sid: string, t: number, w = 640) => `/api/projects/${pid}/frame?src=${sid}&t=${t.toFixed(2)}&w=${w}`,
   render: (pid: string, i: number) => `/media/${pid}/render/${i}`,
-  overlay: (pid: string, o: { kind: string; text: string; sub?: string; tag?: string }) =>
+  asset: (pid: string, aid: string) => `/media/${pid}/asset/${aid}`,
+  assetThumb: (pid: string, aid: string) => `/media/${pid}/asset/${aid}/thumb.jpg`,
+  overlay: (pid: string, o: { kind: string; text: string; sub?: string; tag?: string }, w = 1280, h = 720) =>
     `/api/projects/${pid}/overlay.png?kind=${encodeURIComponent(o.kind)}&text=${encodeURIComponent(o.text)}` +
-    `&sub=${encodeURIComponent(o.sub ?? "")}&tag=${encodeURIComponent(o.tag ?? "")}`,
+    `&sub=${encodeURIComponent(o.sub ?? "")}&tag=${encodeURIComponent(o.tag ?? "")}&w=${w}&h=${h}`,
 };

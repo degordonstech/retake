@@ -25,18 +25,18 @@ def have_ffmpeg() -> bool:
     return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
 
-def run(cmd: list[str], *, capture: bool = False) -> bytes:
-    r = subprocess.run(cmd, capture_output=True, creationflags=_NO_WINDOW)
+def run(cmd: list[str], *, capture: bool = False, cwd: Path | None = None) -> bytes:
+    r = subprocess.run(cmd, capture_output=True, creationflags=_NO_WINDOW, cwd=cwd)
     if r.returncode != 0:
         tail = r.stderr.decode("utf-8", "replace")[-1500:]
         raise MediaError(f"{Path(cmd[0]).name} failed: {tail}")
     return r.stdout if capture else b""
 
 
-def run_progress(cmd: list[str], duration: float, on_progress: Callable[[float], None]) -> None:
+def run_progress(cmd: list[str], duration: float, on_progress: Callable[[float], None], cwd: Path | None = None) -> None:
     """Run ffmpeg and report 0..1 progress from its -progress output."""
     full = cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:]
-    p = subprocess.Popen(full, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_NO_WINDOW)
+    p = subprocess.Popen(full, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=_NO_WINDOW, cwd=cwd)
     assert p.stdout is not None
     err_chunks: list[bytes] = []
     import threading
@@ -220,7 +220,7 @@ def frame_at(src: Path, t: float, width: int = 0) -> bytes:
 PREROLL = 20.0
 
 
-def window_input(src: Path, start: float, dur: float) -> list[str]:
+def window_input(src: Path, start: float, dur: float, preroll: float = PREROLL) -> list[str]:
     """Input args for a stretch of video, decoding from a little earlier.
 
     Screen recordings only store a frame when something changes. Seeking
@@ -228,13 +228,13 @@ def window_input(src: Path, start: float, dur: float) -> list[str]:
     screen at `start` if nothing moved for a while. So decoding starts up to
     PREROLL seconds early; `window_filter` then trims back to `start`."""
     start = max(0.0, start)
-    s0 = max(0.0, start - PREROLL)
+    s0 = max(0.0, start - preroll)
     return ["-ss", f"{s0:.3f}", "-t", f"{dur + (start - s0):.3f}", "-i", str(src)]
 
 
-def window_filter(start: float, dur: float, fps: float) -> str:
+def window_filter(start: float, dur: float, fps: float, preroll: float = PREROLL) -> str:
     start = max(0.0, start)
-    pre = start - max(0.0, start - PREROLL)
+    pre = start - max(0.0, start - preroll)
     return (f"fps={fps:g}:start_time=0,trim=start={pre:.3f}:duration={dur:.3f},setpts=PTS-STARTPTS")
 
 

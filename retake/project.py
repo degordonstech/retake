@@ -159,11 +159,12 @@ def create(folder: str | Path, name: str | None = None) -> Project:
         "stage": "sources",
         "sources": sources,
         "takes": [],
-        "edit": {"clips": [], "overlays": []},
+        "edit": {"clips": [], "overlays": [], "media": [], "audio": []},
         "privacy": {"detections": [], "manual": [], "allowed": []},
         "brain": {},
         "output": {"fps": 0, "quality": "high", "captions": False},
         "renders": [],
+        "assets": [],
     }
     p = Project(folder, data)
     p.data["takes"] = guess_takes(p.data["sources"])
@@ -235,8 +236,15 @@ def _take(voice: dict, video: dict | None) -> dict:
 
 
 def clip_dur(c: dict) -> float:
-    """Length of a timeline clip: a stretch of a take, or a title card."""
-    return float(c.get("dur", 3)) if c.get("kind") == "title" else c["b"] - c["a"]
+    """Length of a timeline clip on the timeline: a stretch of a take (shorter
+    when sped up), or a title card."""
+    if c.get("kind") == "title":
+        return float(c.get("dur", 3))
+    return (c["b"] - c["a"]) / clip_speed(c)
+
+
+def clip_speed(c: dict) -> float:
+    return min(4.0, max(0.25, float(c.get("speed") or 1.0)))
 
 
 def offset_at(take: dict, t: float) -> float:

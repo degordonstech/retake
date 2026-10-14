@@ -1,8 +1,12 @@
-import type { Clip, Edit, MediaClip, Overlay, Take, TitleClip, Transcript, Word } from "../types";
+import type { AudioItem, Clip, Edit, MediaClip, MediaItem, Overlay, Take, TitleClip, Transcript, Word } from "../types";
 import { uid } from "../util";
 
 export const isTitle = (c: Clip): c is TitleClip => c.kind === "title";
-export const clipDur = (c: Clip) => (isTitle(c) ? c.dur : c.b - c.a);
+export const speedOf = (c: Clip) => (isTitle(c) ? 1 : Math.min(4, Math.max(0.25, c.speed ?? 1)));
+/** Length on the timeline (a sped-up clip is shorter). */
+export const clipDur = (c: Clip) => (isTitle(c) ? c.dur : (c.b - c.a) / speedOf(c));
+/** Recording time (voice time) at `local` seconds into a clip. */
+export const srcAt = (c: MediaClip, local: number) => c.a + local * speedOf(c);
 
 export function totalDuration(clips: Clip[]): number {
   return clips.reduce((s, c) => s + clipDur(c), 0);
@@ -45,10 +49,10 @@ export function splitAt(edit: Edit, t: number): Edit {
   let a: Clip, b: Clip;
   if (isTitle(c)) {
     a = { ...c, dur: local };
-    b = { ...c, id: uid("c"), dur: c.dur - local };
+    b = { ...c, id: uid("c"), dur: c.dur - local, transition: undefined };
   } else {
-    a = { ...c, b: c.a + local };
-    b = { ...c, id: uid("c"), a: c.a + local };
+    a = { ...c, b: srcAt(c, local) };
+    b = { ...c, id: uid("c"), a: srcAt(c, local), transition: undefined };
   }
   const clips = [...edit.clips];
   clips.splice(index, 1, a, b);
@@ -153,7 +157,7 @@ export function restoreWords(edit: Edit, take: string, tr: Transcript, i: number
 export function wordTime(clips: Clip[], take: string, w: Word): number | null {
   let t = 0;
   for (const c of clips) {
-    if (!isTitle(c) && c.take === take && w.s >= c.a - 0.03 && w.s <= c.b) return t + Math.max(0, w.s - c.a);
+    if (!isTitle(c) && c.take === take && w.s >= c.a - 0.03 && w.s <= c.b) return t + Math.max(0, w.s - c.a) / speedOf(c);
     t += clipDur(c);
   }
   return null;
@@ -169,6 +173,26 @@ export function newOverlay(kind: Overlay["kind"], start: number, text = ""): Ove
     start: Math.max(0, start),
     dur: kind === "caption" ? 3 : 4.5,
   };
+}
+
+export function newText(style: string, start: number, text = "Your text"): Overlay {
+  return { id: uid("o"), kind: "text", text, style, start: Math.max(0, start), dur: 3, x: 0.5, y: 0.5, anim: "pop", out: "fade" };
+}
+
+export function newMedia(asset: string, start: number, dur: number, kind: "image" | "video"): MediaItem {
+  return { id: uid("m"), asset, start: Math.max(0, start), dur, in: 0, mode: kind === "video" ? "full" : "pip",
+    x: 0.72, y: 0.32, scale: 0.42, radius: 0.06, opacity: 1, anim: "fade", volume: 0 };
+}
+
+export function newAudio(asset: string, start: number, dur: number, music: boolean): AudioItem {
+  return { id: uid("s"), asset, start: Math.max(0, start), dur, in: 0, volume: music ? 0.45 : 0.9,
+    fadeIn: music ? 1 : 0, fadeOut: music ? 2 : 0, duck: music, loop: false };
+}
+
+/** Edits saved before media, music, captions and shapes existed. */
+export function normalize(e: Partial<Edit>): Edit {
+  return { clips: e.clips ?? [], overlays: e.overlays ?? [], media: e.media ?? [], audio: e.audio ?? [],
+    captions: e.captions ?? {}, format: e.format ?? { aspect: "16:9" } };
 }
 
 export function newTitle(): TitleClip {

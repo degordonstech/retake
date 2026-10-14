@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Monitor, AudioLines, Scissors, Undo2 } from "lucide-react";
 import type { Clip, Project, Transcript as Tr } from "../types";
-import { isTitle, locate, wordKept, wordTime } from "./model";
+import { isTitle, locate, srcAt, wordKept, wordTime } from "./model";
 
 interface Props {
   p: Project;
@@ -11,13 +11,15 @@ interface Props {
   onSeek: (t: number) => void;
   onCut: (take: string, i: number, j: number) => void;
   onRestore: (take: string, i: number, j: number) => void;
+  onFix: (take: string, word: number, text: string) => void;
 }
 
 type Sel = { take: string; i: number; j: number } | null;
 const ICON = { screen: Monitor, camera: Camera, audio: AudioLines };
 
-export default function Transcript({ p, transcripts, clips, time, onSeek, onCut, onRestore }: Props) {
+export default function Transcript({ p, transcripts, clips, time, onSeek, onCut, onRestore, onFix }: Props) {
   const [sel, setSel] = useState<Sel>(null);
+  const [fixing, setFixing] = useState<{ take: string; i: number; text: string; x: number; y: number; w: number } | null>(null);
   const drag = useRef<{ take: string; i: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const lastNow = useRef<HTMLElement | null>(null);
@@ -40,7 +42,7 @@ export default function Transcript({ p, transcripts, clips, time, onSeek, onCut,
     let el: HTMLElement | null = null;
     if (c && !isTitle(c)) {
       const tr = transcripts[c.take];
-      const vt = c.a + local;
+      const vt = srcAt(c, local);
       const w = tr?.words.find((x) => x.s <= vt + 0.02 && x.e >= vt - 0.02);
       if (w) el = box.current?.querySelector(`[data-k="${c.take}:${w.i}"]`) ?? null;
     }
@@ -113,6 +115,23 @@ export default function Transcript({ p, transcripts, clips, time, onSeek, onCut,
     drag.current = null;
   };
 
+  /** Double-click a word to correct how it is spelled in captions. */
+  const onDouble = (e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement).closest("[data-k]") as HTMLElement | null;
+    if (!el || !box.current) return;
+    const [take, i] = el.getAttribute("data-k")!.split(":");
+    const r = el.getBoundingClientRect(), pr = box.current.getBoundingClientRect();
+    setSel(null);
+    setFixing({ take, i: Number(i), text: el.textContent ?? "", x: r.left - pr.left + box.current.scrollLeft, y: r.top - pr.top + box.current.scrollTop, w: r.width });
+  };
+  const saveFix = () => {
+    if (!fixing) return;
+    const orig = transcripts[fixing.take]?.words[fixing.i]?.w ?? "";
+    const text = fixing.text.trim();
+    onFix(fixing.take, fixing.i, text === orig ? "" : text);
+    setFixing(null);
+  };
+
   // Takes in the order they first play in the edit; unused takes last.
   const orderedTakes = useMemo(() => {
     const first = new Map<string, number>();
@@ -131,7 +150,7 @@ export default function Transcript({ p, transcripts, clips, time, onSeek, onCut,
     <>
       <div className="pane-head">
         <h3>Transcript</h3>
-        <span className="faint tiny">Click a word to jump · drag to select</span>
+        <span className="faint tiny">Click to jump · drag to select · double-click to fix a word</span>
         <div style={{ marginLeft: "auto" }} className="row">
           {sel && (
             <>
@@ -141,7 +160,13 @@ export default function Transcript({ p, transcripts, clips, time, onSeek, onCut,
           )}
         </div>
       </div>
-      <div className="transcript selectable" ref={box} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}>
+      <div className="transcript selectable" ref={box} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onDoubleClick={onDouble}>
+        {fixing && (
+          <input className="input fixword" autoFocus value={fixing.text} style={{ left: fixing.x - 6, top: fixing.y - 4, width: Math.max(90, fixing.w + 40) }}
+            onMouseDown={(e) => e.stopPropagation()} onChange={(e) => setFixing({ ...fixing, text: e.target.value })}
+            onKeyDown={(e) => { if (e.key === "Enter") saveFix(); if (e.key === "Escape") setFixing(null); e.stopPropagation(); }}
+            onBlur={saveFix} aria-label="Correct this word" />
+        )}
         {orderedTakes.map((t) => {
           const tr = transcripts[t.id];
           if (!tr) return null;
