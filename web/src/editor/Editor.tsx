@@ -59,7 +59,7 @@ function reanchor(prev: Clip[], next: Clip[], overlays: Overlay[]): Overlay[] {
   });
 }
 
-export default function Editor({ p }: Props) {
+export default function Editor({ p, setP }: Props) {
   const toast = useToast();
   const [edit, setEdit] = useState<Edit>(p.edit);
   const past = useRef<Edit[]>([]);
@@ -255,6 +255,13 @@ export default function Editor({ p }: Props) {
           <div className="pane-head"><h3>{overlay ? "Text" : selectedClips.length ? "Clip" : "About this cut"}</h3></div>
           <Inspector p={p} clips={edit.clips} overlays={edit.overlays} transcripts={transcripts} selectedClips={selectedClips} overlay={overlay}
             onSeek={seek}
+            onNudge={async (take, delta) => {
+              try {
+                const next = await api.nudge(p.id, take, delta);
+                setP({ ...next, edit: editRef.current });
+                toast(delta < 0 ? "Picture moved earlier" : "Picture moved later", "ok");
+              } catch (e) { toast((e as Error).message, "bad"); }
+            }}
             onClip={(c, commit) => apply((e) => ({ ...e, clips: e.clips.map((x) => (x.id === c.id ? c : x)) }), commit)}
             onOverlayEdit={(o, commit) => apply((e) => ({ ...e, overlays: e.overlays.map((x) => (x.id === o.id ? o : x)) }), commit)}
             onDeleteOverlay={(id) => { apply((e) => ({ ...e, overlays: e.overlays.filter((o) => o.id !== id) })); setSelOverlay(null); }}

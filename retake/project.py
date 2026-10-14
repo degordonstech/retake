@@ -116,6 +116,16 @@ def load(folder: str | Path) -> Project:
     return Project(folder, data)
 
 
+def commit(p: Project, fn) -> None:
+    """Apply `fn` to the latest saved data and save it. Jobs run for minutes;
+    this way edits made in the window meanwhile are never overwritten."""
+    with _lock_for(str(p.folder)):
+        fresh = load(p.folder)
+        fn(fresh.data)
+        fresh.save()
+        p.data = fresh.data
+
+
 def by_id(project_id: str) -> Project:
     for p in config.list_projects():
         if p["id"] == project_id:

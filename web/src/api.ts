@@ -35,6 +35,7 @@ export const api = {
   setRole: (id: string, sid: string, role: string) => call<Project>("POST", `/api/projects/${id}/sources/${sid}`, { role }),
   setTakes: (id: string, takes: { id?: string; voice: string; video: string | null }[]) =>
     call<Project>("POST", `/api/projects/${id}/takes`, { takes }),
+  nudge: (id: string, tid: string, delta: number) => call<Project>("POST", `/api/projects/${id}/takes/${tid}/nudge`, { delta }),
   transcript: (id: string, tid: string) => call<Transcript>("GET", `/api/projects/${id}/takes/${tid}`),
   saveEdit: (id: string, edit: Edit) => call<{ ok: boolean }>("PUT", `/api/projects/${id}/edit`, edit),
   output: (id: string) =>

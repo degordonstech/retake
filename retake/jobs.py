@@ -9,7 +9,7 @@ import traceback
 from typing import Callable
 
 from . import analysis, brain, config, edit, media, privacy, render
-from .project import Project, by_id
+from .project import Project, by_id, commit
 
 _jobs: dict[str, dict] = {}            # project id -> latest job
 _queue: "queue.Queue[tuple[str, str, dict]]" = queue.Queue()
@@ -94,7 +94,16 @@ def run_prepare(p: Project, args: dict, progress: Progress, log: Callable[[str],
             info = media.make_thumbs(proxy, p.path("thumbs", f"{s['id']}.jpg"), s["duration"])
             s["thumbs"] = info
         done += s["duration"] * 0.3
-    p.save()
+    found = {s["id"]: s for s in srcs}
+
+    def keep_media_info(d: dict) -> None:
+        for s in d["sources"]:
+            if s["id"] in found:
+                for k in ("native", "thumbs"):
+                    if k in found[s["id"]]:
+                        s[k] = found[s["id"]][k]
+
+    commit(p, keep_media_info)
 
     for t in takes:
         if not (p.dir / "takes" / f"{t['id']}.json").exists():
@@ -112,11 +121,16 @@ def run_prepare(p: Project, args: dict, progress: Progress, log: Callable[[str],
                 + (f", with {jumps} jump{'s' if jumps != 1 else ''} where recording paused" if jumps else ""))
         t["ready"] = True
         done += t["duration"]
-        p.save()
+
+        def keep_take(d: dict, t=t) -> None:
+            for x in d["takes"]:
+                if x["id"] == t["id"]:
+                    x.update({k: t[k] for k in ("offsets", "sync_score", "ready")})
+
+        commit(p, keep_take)
         progress(done / units)
 
-    p.data["stage"] = "edit"
-    p.save()
+    commit(p, lambda d: d.update(stage="edit"))
     if not p.data["edit"]["clips"]:
         run_autoedit(p, {}, progress, log)
 
@@ -134,13 +148,12 @@ def run_autoedit(p: Project, args: dict, progress: Progress, log: Callable[[str]
     overlays = edit.chapter_overlays(clips, result["chapters"], transcripts)
     for i, o in enumerate(overlays, 1):
         o["tag"] = f"STEP {i:02d}"
-    p.data["edit"] = {"clips": clips, "overlays": overlays}
-    p.data["brain"] = {k: result[k] for k in ("chapters", "notes", "title", "description", "source")}
+    new_edit = {"clips": clips, "overlays": overlays}
+    new_brain = {k: result[k] for k in ("chapters", "notes", "title", "description", "source")}
     kept = sum(c["b"] - c["a"] for c in clips)
     raw = sum(t["duration"] for t in takes)
     log(f"First cut ready: {kept / 60:.1f} min kept from {raw / 60:.1f} min recorded, {len(clips)} clips")
-    p.data["stage"] = "edit"
-    p.save()
+    commit(p, lambda d: d.update(edit=new_edit, brain=new_brain, stage="edit"))
     progress(1.0, "First cut ready")
 
 
@@ -149,10 +162,15 @@ def run_scan(p: Project, args: dict, progress: Progress, log: Callable[[str], No
     progress(0.0, "Reading the screen for private things")
     dets = privacy.scan(p, settings, lambda f: progress(f, "Reading the screen for private things"), log)
     p.write_json(dets, "privacy", "detections.json")
-    p.data["privacy"]["scanned"] = time.time()
-    p.data["privacy"]["scanned_edit"] = _edit_fingerprint(p)
-    p.data["stage"] = "privacy"
-    p.save()
+    fingerprint = _edit_fingerprint(p)
+
+    def mark(d: dict) -> None:
+        d["privacy"]["scanned"] = time.time()
+        d["privacy"]["scanned_edit"] = fingerprint
+        if d.get("stage") in ("sources", "edit"):
+            d["stage"] = "privacy"
+
+    commit(p, mark)
 
 
 def run_render(p: Project, args: dict, progress: Progress, log: Callable[[str], None]) -> None:
@@ -170,9 +188,7 @@ def run_render(p: Project, args: dict, progress: Progress, log: Callable[[str], 
     leaks = privacy.verify(result["file"], settings, allowed, lambda f: progress(0.86 + 0.14 * f, "Checking for leaks"))
     result["leaks"] = leaks
     log("Leak check: " + ("nothing private found" if not leaks else f"{len(leaks)} things to look at"))
-    p.data["renders"].insert(0, result)
-    p.data["stage"] = "done"
-    p.save()
+    commit(p, lambda d: (d["renders"].insert(0, result), d.update(stage="done")))
 
 
 def _edit_fingerprint(p: Project) -> str:

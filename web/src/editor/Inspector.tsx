@@ -16,13 +16,14 @@ interface Props {
   onDeleteOverlay: (id: string) => void;
   onDeleteClips: () => void;
   onSeek: (t: number) => void;
+  onNudge: (take: string, delta: number) => void;
 }
 
 const SOURCE_NAME: Record<string, string> = { claude_code: "Claude Code", anthropic: "Claude", groq: "Groq", rules: "the built-in editor" };
 
-export default function Inspector({ p, clips, overlays, transcripts, selectedClips, overlay, onClip, onOverlayEdit, onDeleteOverlay, onDeleteClips, onSeek }: Props) {
+export default function Inspector({ p, clips, overlays, transcripts, selectedClips, overlay, onClip, onOverlayEdit, onDeleteOverlay, onDeleteClips, onSeek, onNudge }: Props) {
   if (overlay) return <OverlayPanel o={overlay} onChange={onOverlayEdit} onDelete={() => onDeleteOverlay(overlay.id)} />;
-  if (selectedClips.length === 1) return <ClipPanel p={p} c={selectedClips[0]} onChange={onClip} onDelete={onDeleteClips} />;
+  if (selectedClips.length === 1) return <ClipPanel p={p} c={selectedClips[0]} onChange={onClip} onDelete={onDeleteClips} onNudge={onNudge} />;
   if (selectedClips.length > 1) {
     const d = selectedClips.reduce((s, c) => s + clipDur(c), 0);
     return (
@@ -101,7 +102,7 @@ function Num({ label, value, onChange, step = 0.1, min = 0 }: { label: string; v
   );
 }
 
-function ClipPanel({ p, c, onChange, onDelete }: { p: Project; c: Clip; onChange: (c: Clip, commit: boolean) => void; onDelete: () => void }) {
+function ClipPanel({ p, c, onChange, onDelete, onNudge }: { p: Project; c: Clip; onChange: (c: Clip, commit: boolean) => void; onDelete: () => void; onNudge: (take: string, delta: number) => void }) {
   if (isTitle(c)) {
     return (
       <div className="inspector">
@@ -138,6 +139,20 @@ function ClipPanel({ p, c, onChange, onDelete }: { p: Project; c: Clip; onChange
           </button>
         ))}
       </div>
+      {take && take.video && take.video !== take.voice && (
+        <div className="col" style={{ gap: 8 }}>
+          <span className="eyebrow">Picture timing</span>
+          <span className="faint small">If the screen runs ahead of or behind your voice, shift it. This applies to the whole recording.</span>
+          <div className="row">
+            {[[-0.1, "Earlier 0.1 s"], [-1 / 30, "1 frame"], [1 / 30, "1 frame"], [0.1, "Later 0.1 s"]].map(([d, l], i) => (
+              <button key={i} className="btn sm grow" onClick={() => onNudge(take.id, d as number)} title={(d as number) < 0 ? "Picture earlier" : "Picture later"}>
+                {(d as number) < 0 ? "-" : "+"}{l}
+              </button>
+            ))}
+          </div>
+          <span className="faint tiny mono">Now {take.offsets[0][1] >= 0 ? "+" : ""}{take.offsets[0][1].toFixed(2)} s{take.offsets.length > 1 ? ` (${take.offsets.length - 1} jumps)` : ""}</span>
+        </div>
+      )}
       <button className="btn danger" onClick={onDelete}><Trash2 size={15} /> Delete clip</button>
     </div>
   );

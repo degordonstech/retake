@@ -21,6 +21,7 @@ export default function ProjectView({ id, onGone }: { id: string; onGone: () => 
   const [p, setP] = useState<Project | null>(null);
   const [step, setStep] = useState<Step>(() => (localStorage.getItem(`retake.step.${id}`) as Step) || "footage");
   const [name, setName] = useState("");
+  const [editKey, setEditKey] = useState(0);
 
   const reload = useCallback(async () => {
     try {
@@ -40,6 +41,7 @@ export default function ProjectView({ id, onGone }: { id: string; onGone: () => 
       const next = await reload();
       if (j.status === "error") toast(j.error || "Something went wrong", "bad");
       else if (j.kind === "prepare" || j.kind === "autoedit") {
+        setEditKey((k) => k + 1);
         toast("Your first cut is ready", "ok");
         if (next?.edit.clips.length) setStep("edit");
       } else if (j.kind === "scan") toast("Privacy scan finished", "ok");
@@ -97,7 +99,7 @@ export default function ProjectView({ id, onGone }: { id: string; onGone: () => 
       </header>
       <div className="page" style={current === "edit" ? { overflow: "hidden" } : undefined}>
         {current === "footage" && <Footage p={p} setP={setP} job={job} active={active} start={start} goEdit={() => setStep("edit")} />}
-        {current === "edit" && <Editor p={p} setP={setP} job={job} active={active} start={start} />}
+        {current === "edit" && <Editor key={editKey} p={p} setP={setP} job={job} active={active} start={start} />}
         {current === "privacy" && <Privacy p={p} job={job} active={active} start={start} reload={reload} goExport={() => setStep("export")} />}
         {current === "export" && <Export p={p} setP={setP} job={job} active={active} start={start} reload={reload} />}
       </div>

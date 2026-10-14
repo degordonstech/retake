@@ -211,6 +211,26 @@ def get_take(pid: str, tid: str) -> dict:
     return data
 
 
+class Nudge(BaseModel):
+    delta: float
+
+
+@app.post("/api/projects/{pid}/takes/{tid}/nudge")
+def nudge_take(pid: str, tid: str, body: Nudge) -> dict:
+    """Shift the picture of a take against its voice (positive = picture later)."""
+    p = _project(pid)
+    try:
+        t = p.take(tid)
+    except KeyError:
+        raise HTTPException(404, "Take not found")
+    if not t["video"] or t["video"] == t["voice"]:
+        raise HTTPException(400, "This take's picture and sound come from the same file.")
+    d = max(-5.0, min(5.0, body.delta))
+    t["offsets"] = [[at, round(o - d, 3)] for at, o in t["offsets"]]
+    p.save()
+    return _full(p)
+
+
 class EditBody(BaseModel):
     clips: list[dict]
     overlays: list[dict]
