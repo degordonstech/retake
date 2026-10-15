@@ -9,7 +9,7 @@ import traceback
 from typing import Callable
 
 from . import analysis, brain, config, edit, media, privacy, render
-from .project import Project, by_id, commit
+from .project import Project, by_id, commit, new_id
 
 _jobs: dict[str, dict] = {}            # project id -> latest job
 _queue: "queue.Queue[tuple[str, str, dict]]" = queue.Queue()
@@ -106,7 +106,8 @@ def run_prepare(p: Project, args: dict, progress: Progress, log: Callable[[str],
     commit(p, keep_media_info)
 
     for t in takes:
-        if not (p.dir / "takes" / f"{t['id']}.json").exists():
+        tj = p.read_json("takes", f"{t['id']}.json")
+        if not tj or tj.get("quick"):
             msg = f"Listening to {t['name']}"
             log(msg)
             base = done
@@ -205,6 +206,66 @@ def _edit_fingerprint(p: Project) -> str:
     return hashlib.sha1(json.dumps([clips, words, privacy.RULES_VERSION]).encode()).hexdigest()[:12]
 
 
-RUNNERS = {"prepare": run_prepare, "autoedit": run_autoedit, "scan": run_scan, "render": run_render}
+def run_quickstart(p: Project, args: dict, progress: Progress, log: Callable[[str], None]) -> None:
+    """Edit right away, no AI: every file on the timeline as it is.
+
+    Each picture file keeps its own sound; sound-only files stand alone.
+    Only preview copies, thumbnails and waveforms are made. Transcribing
+    (for captions and text editing) can be done later with Prepare."""
+    from .project import _take
+
+    srcs = [s for s in p.data["sources"] if s["role"] != "skip"]
+    if not srcs:
+        raise ValueError("Add at least one video or audio file.")
+    takes = [_take(s, s if s["has_video"] else None) for s in srcs]
+    units = sum(s["duration"] for s in srcs) or 1
+    done = 0.0
+    found: dict = {}
+    for s in srcs:
+        src_path = p.source_path(s["id"])
+        s["native"] = media.plays_natively(src_path, s)
+        proxy = src_path if s["native"] else p.dir / "proxy" / f"{s['id']}.mp4"
+        if not s["native"] and not proxy.exists():
+            msg = f"Making a preview copy of {s['file']}"
+            log(msg)
+            base = done
+            media.make_proxy(src_path, proxy, s["duration"], s["has_video"],
+                             lambda f, b=base, d=s["duration"]: progress((b + f * d * 0.8) / units, msg))
+        if s["has_video"] and not (p.dir / "thumbs" / f"{s['id']}.jpg").exists():
+            s["thumbs"] = media.make_thumbs(proxy, p.path("thumbs", f"{s['id']}.jpg"), s["duration"])
+        found[s["id"]] = s
+        done += s["duration"]
+        progress(done / units, f"Getting {s['file']} ready")
+    for t in takes:
+        if not p.read_json("takes", f"{t['id']}.json") and p.source(t["voice"]).get("has_audio"):
+            # Just the waveform for now; words come later if you transcribe.
+            db = media.level_db(media.load_audio(p.source_path(t["voice"])))
+            p.write_json({"words": [], "silences": [], "peaks": media.waveform_peaks(db), "duration": t["duration"],
+                          "quick": True}, "takes", f"{t['id']}.json")
+        elif not p.read_json("takes", f"{t['id']}.json"):
+            p.write_json({"words": [], "silences": [], "peaks": [], "duration": t["duration"], "quick": True},
+                         "takes", f"{t['id']}.json")
+        t.update(ready=True, sync_score=0.0)
+    clips = [{"id": new_id("c"), "take": t["id"], "a": 0.0, "b": round(t["duration"], 3)} for t in takes]
+
+    def apply(d: dict) -> None:
+        for s in d["sources"]:
+            if s["id"] in found:
+                for k in ("native", "thumbs"):
+                    if k in found[s["id"]]:
+                        s[k] = found[s["id"]][k]
+        d["takes"] = takes
+        d["edit"] = {**d.get("edit", {}), "clips": clips, "overlays": [], "media": d.get("edit", {}).get("media", []),
+                     "audio": d.get("edit", {}).get("audio", [])}
+        d["brain"] = {"source": "none"}
+        d["stage"] = "edit"
+        d["quick"] = True
+
+    commit(p, apply)
+    log(f"Ready to edit: {len(clips)} files on the timeline")
+    progress(1.0, "Ready to edit")
+
+
+RUNNERS = {"prepare": run_prepare, "quickstart": run_quickstart, "autoedit": run_autoedit, "scan": run_scan, "render": run_render}
 
 threading.Thread(target=_worker, daemon=True, name="retake-jobs").start()

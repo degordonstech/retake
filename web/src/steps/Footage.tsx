@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowRight, ArrowUp, AudioLines, Camera, Check, Clapperboard, FileAudio, Loader2, Monitor, RefreshCw, Sparkles, Wand2 } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, AudioLines, Camera, Check, Clapperboard, FileAudio, Loader2, Monitor, RefreshCw, Scissors, Sparkles, Wand2 } from "lucide-react";
 import { api, media } from "../api";
 import type { Job, Project, Role, Settings, Take } from "../types";
 import { fmtBytes, fmtDuration } from "../util";
@@ -30,7 +30,7 @@ export default function Footage({ p, setP, job, active, start, goEdit }: Props) 
   useEffect(() => { api.settings().then(setSettings).catch(() => {}); }, []);
 
   const prepared = p.takes.length > 0 && p.takes.every((t) => t.ready);
-  const running = active && (job.kind === "prepare" || job.kind === "autoedit");
+  const running = active && (job.kind === "prepare" || job.kind === "autoedit" || job.kind === "quickstart");
   const src = (id: string | null) => p.sources.find((s) => s.id === id);
   const videos = p.sources.filter((s) => s.has_video && s.role !== "skip");
 
@@ -59,13 +59,25 @@ export default function Footage({ p, setP, job, active, start, goEdit }: Props) 
         </div>
         {!running && (prepared && p.edit.clips.length ? (
           <div className="row">
-            <button className="btn" onClick={() => setRecut(true)}><RefreshCw size={16} /> New first cut</button>
+            {p.quick ? (
+              <button className="btn" onClick={() => start("prepare")} title="Listen to every file for captions, editing by text and an AI first cut">
+                <Wand2 size={16} /> Transcribe for captions
+              </button>
+            ) : (
+              <button className="btn" onClick={() => setRecut(true)}><RefreshCw size={16} /> New first cut</button>
+            )}
             <button className="btn primary lg" onClick={goEdit}>Open the editor <ArrowRight size={18} /></button>
           </div>
         ) : (
-          <button className="btn primary lg" onClick={() => start("prepare")} disabled={!p.takes.length}>
-            <Wand2 size={18} /> Make my first cut
-          </button>
+          <div className="row">
+            <button className="btn lg" onClick={() => start("quickstart")} disabled={!p.sources.length}
+              title="Every file goes on the timeline as it is, ready in seconds. No AI, no transcription.">
+              <Scissors size={18} /> Just edit
+            </button>
+            <button className="btn primary lg" onClick={() => start("prepare")} disabled={!p.takes.length}>
+              <Wand2 size={18} /> Make my first cut
+            </button>
+          </div>
         ))}
       </div>
 

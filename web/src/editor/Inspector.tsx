@@ -28,7 +28,12 @@ export function Summary({ p, clips, overlays, transcripts, onSeek }: { p: Projec
   const chapters = overlays.filter((o) => o.chapter || o.kind === "label").sort((x, y) => x.start - y.start);
   return (
     <div className="inspector">
-      <div className="row"><Bot size={16} color="var(--accent)" /><b className="small">First cut by {SOURCE_NAME[b.source ?? ""] ?? "Retake"}</b></div>
+      {b.source === "none" ? (
+        <div className="hint">You're editing by hand. Split with S, drag clips to reorder, and use the tools on the left.
+          For captions and editing by text, go back to Footage and press Transcribe for captions.</div>
+      ) : (
+        <div className="row"><Bot size={16} color="var(--accent)" /><b className="small">First cut by {SOURCE_NAME[b.source ?? ""] ?? "Retake"}</b></div>
+      )}
       {b.title && <Copyable label="Suggested title" text={b.title} />}
       {b.description && <Copyable label="Suggested description" text={b.description} />}
       {(b.notes?.length ?? 0) > 0 && (

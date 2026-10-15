@@ -40,9 +40,9 @@ export default function ProjectView({ id, onGone }: { id: string; onGone: () => 
     async (j: Job) => {
       const next = await reload();
       if (j.status === "error") toast(j.error || "Something went wrong", "bad");
-      else if (j.kind === "prepare" || j.kind === "autoedit") {
+      else if (j.kind === "prepare" || j.kind === "autoedit" || j.kind === "quickstart") {
         setEditKey((k) => k + 1);
-        toast("Your first cut is ready", "ok");
+        toast(j.kind === "quickstart" ? "Ready to edit" : next?.quick && j.kind === "prepare" ? "Transcribed: captions and text editing are on" : "Your first cut is ready", "ok");
         if (next?.edit.clips.length) setStep("edit");
       } else if (j.kind === "scan") toast("Privacy scan finished", "ok");
       else if (j.kind === "render") toast("Your video is ready", "ok");

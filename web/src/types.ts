@@ -232,6 +232,7 @@ export interface Project {
   edit: Edit;
   privacy: { dismissed?: string[]; manual?: Manual[]; scanned?: number };
   brain: BrainResult;
+  quick?: boolean;
   assets: Asset[];
   output: { fps: number; quality: "high" | "standard" | "small" };
   renders: RenderResult[];
