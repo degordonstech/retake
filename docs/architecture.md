@@ -2,14 +2,14 @@
 
 Retake has two halves that talk over HTTP on `127.0.0.1`:
 
-- **The engine** (`retake/`, Python): projects, transcription, sync, the AI first cut, the privacy scan, the ffmpeg export, and a local API.
+- **The backend** (`retake/`, Python): projects, transcription, sync, the AI first cut, the privacy scan, the ffmpeg export, and a local API.
 - **The interface** (`web/`, React and TypeScript): the editor, plus Retake's own rendering engine (`web/src/engine/`), which draws the preview and makes Fast exports.
 
-The desktop app is the Python engine plus a [pywebview](https://pywebview.flowrl.com/) window (WebView2 on Windows) showing the interface it serves.
+The desktop app is the backend plus a [pywebview](https://pywebview.flowrl.com/) window (WebView2 on Windows) showing the interface it serves.
 
 ```
 retake/
-  main.py          start the engine and the window; single instance; logging
+  main.py          start the backend and the window; single instance; logging
   app.py           the local API (FastAPI) and static files
   config.py        settings and the project list, in %APPDATA%\Retake
   project.py       a project is a folder; Retake's work goes in <folder>/.retake/
@@ -48,7 +48,7 @@ The full schema is in [project-format.md](project-format.md).
 1. **Prepare** (`jobs.run_prepare`): preview copies for files the window can't play, thumbnail sprites, transcription with word timings (fitted to measured silences), and sync of each voice with its screen recording.
 2. **First cut** (`jobs.run_autoedit`): the transcript goes to the chosen AI editor with the system prompt in `brain/__init__.py`. It answers with the words to keep, chapters, notes, corrections, a title and a description. `edit.build_clips` turns kept words into clips, cutting at the quietest 10 ms near each boundary and shortening long pauses.
 3. **Just edit** (`jobs.run_quickstart`): no transcription. Every file becomes its own take and goes on the timeline whole.
-4. **Editing** happens in the window. The edit autosaves to the engine 600 ms after each change. Undo and redo live in the window.
+4. **Editing** happens in the window. The edit autosaves to the backend 600 ms after each change. Undo and redo live in the window.
 5. **Privacy scan** (`jobs.run_scan`): reads the kept footage at 10 frames a second wherever the picture changes, with Windows OCR. Finds are grouped into runs with boxes. Blur areas come from the finds you keep plus any you draw.
 6. **Export**: either path below.
 
@@ -62,7 +62,7 @@ The preview and Fast export are drawn by the same code, so what you see is what 
 - **text.ts** draws captions and styled text on a 2D canvas, from the timing rules in `looks.ts`.
 - **renderer.ts** draws one moment: the main clip or a transition, privacy blurs, overlays, graphics, text and captions, and fades.
 - **audio.ts** mixes sound in one-second windows: voice clips (speed changes use a waveform-similarity overlap-add stretch that keeps pitch), music and effects, ducking under the voice, and loudness measured to ITU-R BS.1770 and levelled to -14 LUFS.
-- **export.ts** draws every frame, waits for exact frames, encodes video and audio with WebCodecs and writes an MP4 with Mediabunny, streaming the file in pieces to the engine (`/stream-render`).
+- **export.ts** draws every frame, waits for exact frames, encodes video and audio with WebCodecs and writes an MP4 with Mediabunny, streaming the file in pieces to the backend (`/stream-render`).
 
 ## ffmpeg export (retake/render.py)
 
@@ -74,7 +74,7 @@ Screen recordings are read from up to 20 seconds before each cut and trimmed bac
 
 ## Captions
 
-The engine lays out captions (`captions.layout`) with the real fonts: words grouped into captions (by count, pauses, sentence ends and fit), lines balanced, every word given its own position. The window draws from that same layout, and the export writes it to an ASS subtitle file where every word is its own positioned event, so a single word can pop, glow or sit in a box without the line moving. libass sizes fonts by their Windows ascent and descent, so sizes are converted from em with each font's ratio.
+The backend lays out captions (`captions.layout`) with the real fonts: words grouped into captions (by count, pauses, sentence ends and fit), lines balanced, every word given its own position. The window draws from that same layout, and the export writes it to an ASS subtitle file where every word is its own positioned event, so a single word can pop, glow or sit in a box without the line moving. libass sizes fonts by their Windows ascent and descent, so sizes are converted from em with each font's ratio.
 
 ## Jobs
 

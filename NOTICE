@@ -1,0 +1,23 @@
+Retake
+Copyright 2026 Godwin Danjuma
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes the following third-party work, each under its own licence:
+
+Fonts (retake/assets/fonts)
+  Poppins, Anton, Bebas Neue, Bangers, Archivo Black, DM Serif Display,
+  Space Grotesk and JetBrains Mono: SIL Open Font License 1.1
+  (retake/assets/fonts/LICENSE-OFL.txt)
+  Permanent Marker and Luckiest Guy: Apache License 2.0
+  (retake/assets/fonts/LICENSE-Apache.txt)
+
+Bundled into the interface (web/)
+  Mediabunny: Mozilla Public License 2.0, https://github.com/Vanilagy/mediabunny
+  React and React DOM: MIT License
+  Lucide icons (lucide-react): ISC License
+  Inter (via @fontsource-variable/inter): SIL Open Font License 1.1
+
+Retake also uses, without bundling them, ffmpeg, faster-whisper, pywebview,
+FastAPI, and the other Python packages listed in requirements.txt. Each is
+installed separately and keeps its own licence.

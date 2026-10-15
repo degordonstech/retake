@@ -4,3 +4,4 @@ web/node_modules/
 web/dist/
 .retake/
 *.log
+web/tsconfig.tsbuildinfo

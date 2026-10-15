@@ -1,45 +1,26 @@
 # Retake
 
-A desktop video editor that can also make the first cut for you.
+Retake is a free desktop video editor. You can drop in clips and edit them yourself, or hand it a folder of long screen recordings and let it make the first cut.
 
-Drop in your videos and edit them like any editor: a timeline, transitions, animated captions, text, music, filters, speed, zoom and every common shape from YouTube to Shorts. Or point Retake at a folder of long tutorial recordings and let it do the slow part: it lines up a separate voice track with the screen recording, cuts the retakes, false starts and dead air with AI, finds and blurs anything private on screen, and hands you the result on the same timeline.
+I built it because editing my own tutorials took longer than recording them. I record in one go: screen, voice on a separate recorder, sometimes my face. Then I'd spend hours lining the voice up with the screen, cutting every "wait, let me do that again", and scrubbing frame by frame to blur API keys and emails I'd shown by accident. Retake does that part. Then it gives you a normal editor to finish the video your way.
 
-Everything runs on your computer. Your footage never leaves it. The only thing sent anywhere is the transcript text, and only to the AI editor you choose.
+It runs on your computer. Your footage stays there.
 
-## Features
+## What you can do with it
 
-**Editing**
-- Timeline with Text, Overlay, Video and Audio tracks. Split, trim, reorder, duplicate, snapping, undo and redo for everything. Saves as you go.
-- Edit by text: every word of the transcript is clickable. Select words and press Delete to cut them; press R to bring them back.
-- Clip speed from 0.25x to 4x (voice keeps its pitch), volume and mute.
-- Twelve colour filters plus brightness, contrast, saturation, warmth, vignette and sharpen.
-- Framing: fit or fill, blurred background, zoom and pan, and a slow Ken Burns push.
-- Twelve transitions, including crossfade, dip to black, slide, wipe, zoom and circle.
-- 16:9, 9:16, 1:1 and 4:5, switched at any time.
+Edit like you would anywhere else. There's a timeline with text, overlay, video and audio tracks. You can split, trim, reorder and undo anything, and it saves as you go. You can also edit by text: delete a sentence from the transcript and it's gone from the video.
 
-**Captions and text**
-- Twelve animated caption looks (pop, karaoke, word box, highlighter, neon, one word at a time and more), made from your words and following every cut.
-- Ten text styles with entrances (pop, rise, slide, typewriter). Drag text in the preview to place it, scroll to resize it.
-- Title cards, chapter labels and lower thirds for tutorials. Chapters are exported as a YouTube chapter list.
-- Fix a misheard word once and it is fixed everywhere.
+Make it look good. There are twelve animated caption styles, built from what you said and following every cut. You get text with pop, slide and typewriter entrances, and twelve transitions and twelve colour filters. Clips can run from 0.25x to 4x and keep your voice's pitch. You can zoom into code with a slow Ken Burns push, and switch between 16:9, 9:16, 1:1 and 4:5 whenever you like.
 
-**Media and sound**
-- B-roll, pictures and clips, full screen or picture in picture with rounded corners.
-- Music that loops to fill and ducks under your voice. Twelve built-in sound effects, made on your computer.
-- Voice cleanup and loudness levelled to the YouTube target (-14 LUFS).
+Add media. Drop in B-roll full screen or picture in picture, and add music that gets quieter while you talk. There are built-in sound effects, generated on your machine, so there's no licence to worry about. Sound is levelled to YouTube's loudness target.
 
-**For tutorial recordings**
-- Pairs each voice track with its screen recording and lines them up by sound, including the jumps where two recorders were paused a moment apart.
-- An AI first cut: keeps the last good take of each sentence, removes lines meant for the editor and long waits, adds chapters, writes a title and description, and leaves notes on anything worth checking.
-- Privacy: reads the screen wherever it changes and blurs emails, phone numbers, API keys, password prompts, links with long IDs, file pickers and any words you add. After export it reads the finished video back to check nothing private is still visible.
+Let it edit long recordings. Give it a folder with your screen recordings, voice tracks and camera footage. It works out which is which and syncs each voice to its screen, even when the two recorders were paused at slightly different times. An AI then cuts the retakes, false starts and dead air, adds chapters, and suggests a title and description. You review it on the timeline like any other edit.
 
-**Two ways to export**
-- **Export video** renders with ffmpeg at full quality and runs the privacy read-back check.
-- **Fast export** renders in the window with Retake's own engine on your graphics chip. Blurs are applied; the read-back check is not run.
+Keep private things private. It reads your screen recordings and blurs emails, phone numbers, API keys, password prompts and anything else you tell it to watch for. After export it reads the finished video back to check nothing slipped through.
 
-## Install
+## Getting started
 
-Retake needs Windows 10 or 11 (macOS and Linux should work but are untested), Python 3.11 or newer, ffmpeg on the PATH, and Node 20 or newer to build the interface.
+You need Windows 10 or 11, Python 3.11+, Node 20+, and ffmpeg on your PATH. macOS and Linux should work, but I haven't tested them.
 
 ```powershell
 git clone https://github.com/degordonstech/retake.git
@@ -49,44 +30,51 @@ cd web; npm install; npm run build; cd ..
 python -m retake
 ```
 
-`Start Retake.cmd` starts it without a console window. `python -m retake --browser` opens it in your browser instead of its own window.
+Next time, double-click `Start Retake.cmd`. Add `--browser` to open it in your browser instead of its own window.
 
-The first transcription downloads a Whisper speech model (about 500 MB for the default `small` model).
+Then click **New video** and pick your files, or drag them onto the window. To have the AI make a first cut, turn on **AI first cut** before you add them, or start from a folder of recordings.
 
-## Start a video
+The first time you transcribe, it downloads a speech model of about 500 MB.
 
-- **New video**: click it on the home screen or drag files onto the window. The files go straight onto the timeline. Turn on **AI first cut** first if you want Retake to edit them for you.
-- **From a folder of recordings**: choose a folder that holds your screen recordings, voice tracks and camera footage. Retake works out which file is which, pairs them, and makes the first cut.
+## The AI part is optional
 
-See the [user guide](docs/user-guide.md) for every tool and shortcut.
+You pick who makes the first cut in Settings:
 
-## Who makes the first cut
-
-Chosen in Settings:
-
-| Option | What it uses | Cost |
+| Option | What it needs | What it costs |
 |---|---|---|
-| Claude Code (default) | The Claude Code installed on this computer, run headless | Your existing Claude plan |
-| Claude API key | Your Anthropic key | Per video, on your Anthropic account |
-| Groq | A free Groq key (`openai/gpt-oss-120b`) | Free tier |
-| Built-in rules | No AI: drops filler-only phrases and obvious retakes | Free, offline |
+| Claude Code (default) | Claude Code installed on your computer | Your existing Claude plan |
+| Claude API | An Anthropic API key | Pay per use, on your Anthropic account |
+| Groq | A free Groq key | Nothing on the free tier |
+| Built-in rules | Nothing | Nothing. It trims obvious retakes and filler without AI |
 
-If the AI isn't available or fails, Retake falls back to the built-in rules and says so.
+Only the transcript text is sent, and only to the one you picked. If you edit by hand, nothing leaves your computer.
 
-## Documentation
+## Two ways to export
 
-- [User guide](docs/user-guide.md): every tool, panel and shortcut.
-- [Architecture](docs/architecture.md): how the engine, the editor and the exporters fit together.
-- [Development](docs/development.md): running from source, testing safely, and conventions.
-- [Project format](docs/project-format.md): what is stored in a project and where.
-- [Local API](docs/api.md): the endpoints the window uses.
-- [Privacy](docs/privacy.md): what stays on your computer and how the blurring works.
+**Export video** renders everything with ffmpeg at full quality. Then it reads the result back with OCR to make sure nothing private is visible.
+
+**Fast export** renders in the app's own engine on your graphics card. Blurs are still applied, but the read-back check is skipped.
+
+## Docs
+
+- [User guide](docs/user-guide.md): every tool and shortcut
+- [How it works](docs/architecture.md)
+- [Working on Retake](docs/development.md)
+- [Project files](docs/project-format.md)
+- [Local API](docs/api.md)
+- [Privacy](docs/privacy.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Fonts
+## Contributing
 
-The caption and text fonts are in `retake/assets/fonts`: Poppins, Anton, Bebas Neue, Bangers, Archivo Black and DM Serif Display under the SIL Open Font License (`LICENSE-OFL.txt`), and Permanent Marker and Luckiest Guy under the Apache License 2.0 (`LICENSE-Apache.txt`). Space Grotesk and JetBrains Mono are under the SIL Open Font License.
+Bug reports, ideas and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). For security problems, see [SECURITY.md](SECURITY.md) and please don't open a public issue.
+
+## Credits
+
+Retake stands on some excellent open source work: [ffmpeg](https://ffmpeg.org), [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Mediabunny](https://mediabunny.dev), [pywebview](https://pywebview.flowrl.com), [FastAPI](https://fastapi.tiangolo.com), [React](https://react.dev) and [libass](https://github.com/libass/libass). The caption fonts come from [Google Fonts](https://fonts.google.com). Their licences are listed in [NOTICE](NOTICE).
 
 ## License
 
-Not yet licensed for reuse. Copyright Godwin Danjuma. All rights reserved.
+Apache License 2.0. See [LICENSE](LICENSE).
+
+Copyright 2026 Godwin Danjuma.

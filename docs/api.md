@@ -1,6 +1,6 @@
 # Local API
 
-The engine listens on `127.0.0.1` only (port 8765 by default). The window is its only intended client. Bodies and responses are JSON unless noted. Project routes return the full project unless noted.
+The backend listens on `127.0.0.1` only (port 8765 by default). The window is its only intended client. Bodies and responses are JSON unless noted. Project routes return the full project unless noted.
 
 ## App
 

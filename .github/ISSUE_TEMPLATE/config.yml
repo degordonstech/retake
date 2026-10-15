@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/degordonstech/retake/security/advisories/new
+    about: Please report anything that could leak private information here, not in a public issue.

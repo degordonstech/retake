@@ -14,16 +14,16 @@ You also need ffmpeg and ffprobe on the PATH (a full build with libass), and for
 
 Two ways:
 
-- **Engine and built interface together**: `cd web; npm run build`, then `python -m retake --no-window --port 8790` and open `http://127.0.0.1:8790/`. The engine serves `web/dist` from disk, so after `npm run build` a page refresh is enough. Python changes need an engine restart.
-- **Live reload**: run the engine as above on port 8765, then `cd web; npm run dev` and open `http://localhost:5173/`. Vite forwards `/api`, `/media` and `/fonts` to the engine.
+- **Backend and built interface together**: `cd web; npm run build`, then `python -m retake --no-window --port 8790` and open `http://127.0.0.1:8790/`. The backend serves `web/dist` from disk, so after `npm run build` a page refresh is enough. Python changes need a backend restart.
+- **Live reload**: run the backend as above on port 8765, then `cd web; npm run dev` and open `http://localhost:5173/`. Vite forwards `/api`, `/media` and `/fonts` to the backend.
 
 `python -m retake` with no flags opens the desktop window.
 
 ## Testing without touching real projects
 
-Settings and the project list live in `%APPDATA%\Retake`, and projects are folders on disk, so a test engine pointed at real data will change real projects. For anything that saves:
+Settings and the project list live in `%APPDATA%\Retake`, and projects are folders on disk, so a test backend pointed at real data will change real projects. For anything that saves:
 
-- Give the test engine its own settings folder and projects folder:
+- Give the test backend its own settings folder and projects folder:
 
   ```powershell
   $env:APPDATA = "C:\temp\retake-test\appdata"
@@ -43,10 +43,10 @@ npx vite build      # production build into web/dist
 ```
 
 ```powershell
-python -c "import retake.app"   # the engine imports cleanly
+python -c "import retake.app"   # the backend imports cleanly
 ```
 
-The interface is checked by driving it with Chrome (puppeteer-core): open a project, use each tool, and compare screenshots. Engine exports are checked by decoding the result with ffprobe and ffmpeg: frame count, audio length, loudness with `-af ebur128`, and frame comparison against the ffmpeg export of the same edit.
+The interface is checked by driving it with Chrome (puppeteer-core): open a project, use each tool, and compare screenshots. Fast exports are checked by decoding the result with ffprobe and ffmpeg: frame count, audio length, loudness with `-af ebur128`, and frame comparison against the ffmpeg export of the same edit.
 
 ## Conventions
 

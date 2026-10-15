@@ -1,0 +1,27 @@
+name: Something isn't working
+description: A bug, a crash, or a wrong result in an export
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: footage
+    attributes:
+      label: Your footage
+      description: Format and where it came from, for example "MP4 from OBS, 1080p 60 fps" or "MOV from an iPhone".
+  - type: input
+    id: system
+    attributes:
+      label: Your computer
+      description: Windows version, and the graphics card if you know it.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: If the app wouldn't start or crashed, paste the end of %APPDATA%\Retake\retake.log.
+      render: text

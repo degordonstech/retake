@@ -1,0 +1,16 @@
+name: An idea
+description: Something Retake should do, or do better
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: Your idea for solving it, if you have one.
