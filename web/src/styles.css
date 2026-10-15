@@ -461,3 +461,10 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px
 .frame.handles { pointer-events: none; }
 .frame.handles .mitem { pointer-events: auto; background: transparent; }
 .engine-warn { position: absolute; left: 10px; bottom: 10px; right: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.7); color: #ffd27a; font-size: 11.5px; pointer-events: none; }
+
+.newvideo { display: flex; align-items: center; gap: 20px; padding: 26px 28px; border-radius: 22px; cursor: pointer;
+  background: radial-gradient(ellipse at 0% 0%, rgba(255, 138, 61, 0.22), transparent 55%), linear-gradient(135deg, #1b2130, #141821);
+  border: 1.5px solid rgba(255, 138, 61, 0.35); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+.newvideo:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 16px 40px rgba(255, 138, 61, 0.12); }
+.newvideo.hot { border-style: dashed; border-color: var(--accent); background: radial-gradient(ellipse at 50% 0%, rgba(255, 138, 61, 0.3), transparent 60%), #1b2130; }
+.nv-icon { width: 68px; height: 68px; border-radius: 20px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); flex: none; }

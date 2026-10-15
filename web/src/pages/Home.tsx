@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, AudioLines, Clock, Film, FolderPlus, Loader2, ScanEye, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { ArrowRight, AudioLines, Clock, Film, FolderPlus, Loader2, Plus, ScanEye, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
 import { api } from "../api";
 import type { ProjectSummary } from "../types";
 import { ago, fmtDuration } from "../util";
@@ -12,7 +12,7 @@ const STAGE: Record<string, { label: string; tone: string }> = {
   done: { label: "Exported", tone: "ok" },
 };
 
-export default function Home({ onOpen }: { onOpen: (id: string) => void }) {
+export default function Home({ onOpen }: { onOpen: (id: string, step?: string) => void }) {
   const toast = useToast();
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [path, setPath] = useState("");
@@ -38,6 +38,40 @@ export default function Home({ onOpen }: { onOpen: (id: string) => void }) {
     }
   };
 
+  const [ai, setAi] = useState(false);
+  const [hot, setHot] = useState(false);
+  const fromFiles = async (paths: string[]) => {
+    if (!paths.length) return;
+    setBusy(true);
+    try {
+      const p = await api.createFromFiles(paths, ai ? "ai" : "edit");
+      onOpen(p.id, ai ? "footage" : "edit");
+    } catch (e) {
+      toast((e as Error).message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Files dragged in from Explorer (the desktop window passes their paths).
+  useEffect(() => {
+    const h = (e: Event) => { setHot(false); fromFiles((e as CustomEvent<string[]>).detail ?? []); };
+    const over = (e: DragEvent) => { if (e.dataTransfer?.types.includes("Files")) { e.preventDefault(); setHot(true); } };
+    const leave = (e: DragEvent) => { if (!e.relatedTarget) setHot(false); };
+    window.addEventListener("retake-drop", h);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    return () => { window.removeEventListener("retake-drop", h); window.removeEventListener("dragover", over); window.removeEventListener("dragleave", leave); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai]);
+  const pickFiles = async () => {
+    try {
+      const r = await api.pickFiles();
+      await fromFiles(r.paths);
+    } catch (e) {
+      toast((e as Error).message, "bad");
+    }
+  };
+
   const pick = async () => {
     try {
       const r = await api.pickFolder();
@@ -52,24 +86,38 @@ export default function Home({ onOpen }: { onOpen: (id: string) => void }) {
       <div className="page-inner" style={{ maxWidth: 1060 }}>
         <div className="col rise" style={{ gap: 8, marginBottom: 26 }}>
           <span className="eyebrow">Retake</span>
-          <h1>Record it once. Retake does the rest.</h1>
-          <p className="muted" style={{ maxWidth: 620, fontSize: 15 }}>
-            Point it at a folder of recordings. It lines up your voice with your screen, cuts the retakes and pauses,
-            blurs anything private, and hands you a timeline to finish like any editor.
+          <h1>Make something good.</h1>
+          <p className="muted" style={{ maxWidth: 640, fontSize: 15 }}>
+            Drop in your videos and edit, like any editor. Or let Retake make the first cut: it lines up your voice with
+            your screen, cuts the retakes and pauses, and blurs anything private.
           </p>
         </div>
 
-        <div className="dropzone rise" style={{ animationDelay: "60ms" }}>
+        <div className={`newvideo rise ${hot ? "hot" : ""}`} role="button" tabIndex={0}
+          onClick={() => !busy && (canPick ? pickFiles() : toast("Drag your video files onto this window.", "info"))}
+          onKeyDown={(e) => e.key === "Enter" && canPick && pickFiles()}>
+          <div className="nv-icon">{busy ? <Loader2 size={30} className="spin" /> : hot ? <Upload size={30} /> : <Plus size={34} />}</div>
+          <div className="col" style={{ gap: 4 }}>
+            <h2>{hot ? "Drop to start editing" : "New video"}</h2>
+            <p className="muted small">{canPick ? "Click to choose videos, pictures or music, or drag them onto this window." : "Drag videos, pictures or music onto this window."}</p>
+          </div>
+          <label className="row small" style={{ gap: 8, marginLeft: "auto", cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setAi(!ai); }}
+            title="Retake listens to the footage and makes a first cut: retakes, pauses and dead air gone">
+            <span className={`switch ${ai ? "on" : ""}`} /> <Wand2 size={15} color="var(--accent-2)" /> AI first cut
+          </label>
+        </div>
+
+        <div className="dropzone rise" style={{ animationDelay: "60ms", marginTop: 14, padding: "26px 30px" }}>
           <div className="col" style={{ alignItems: "center", gap: 16 }}>
             <div style={{ width: 62, height: 62, borderRadius: 18, display: "grid", placeItems: "center", background: "var(--accent-soft)", color: "var(--accent)" }}>
               <FolderPlus size={28} />
             </div>
             <div className="col" style={{ gap: 4, alignItems: "center" }}>
-              <h2>Start from a folder</h2>
-              <p className="muted small">Screen recordings, a separate voice track, camera footage: put them in one folder.</p>
+              <h3>Or start from a folder of recordings</h3>
+              <p className="muted small">Screen recordings with a separate voice track and camera footage: Retake pairs them and lines them up.</p>
             </div>
             {canPick && (
-              <button className="btn primary lg" onClick={pick} disabled={busy}>
+              <button className="btn" onClick={pick} disabled={busy}>
                 {busy ? <Loader2 size={18} className="spin" /> : <FolderPlus size={18} />} Choose a folder
               </button>
             )}

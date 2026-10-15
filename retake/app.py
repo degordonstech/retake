@@ -162,6 +162,31 @@ def create_project(body: NewProject) -> dict:
     return _full(p)
 
 
+class FromFiles(BaseModel):
+    paths: list[str]
+    name: str | None = None
+    mode: str = "edit"  # "edit": straight to the timeline; "ai": prepare for a first cut
+
+
+@app.post("/api/projects/from-files")
+def create_from_files(body: FromFiles) -> dict:
+    try:
+        p = project.create_from_files(body.paths, body.name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if body.mode == "edit":
+        jobs.start(p.id, "quickstart", {})
+    return _full(p)
+
+
+@app.post("/api/pick-files")
+def pick_files_any() -> dict:
+    fn = window_api["pick_files"]
+    if not fn:
+        raise HTTPException(400, "Choosing files needs the desktop window. Drag files in instead.")
+    return {"paths": list(fn() or [])}
+
+
 @app.delete("/api/projects/{pid}")
 def forget_project(pid: str) -> dict:
     config.forget_project(pid)

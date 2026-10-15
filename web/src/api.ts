@@ -29,6 +29,8 @@ export const api = {
 
   projects: () => call<ProjectSummary[]>("GET", "/api/projects"),
   create: (folder: string, name?: string) => call<Project>("POST", "/api/projects", { folder, name }),
+  createFromFiles: (paths: string[], mode: "edit" | "ai") => call<Project>("POST", "/api/projects/from-files", { paths, mode }),
+  pickFiles: () => call<{ paths: string[] }>("POST", "/api/pick-files"),
   forget: (id: string) => call<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
   project: (id: string) => call<Project>("GET", `/api/projects/${id}`),
   rename: (id: string, name: string) => call<Project>("POST", `/api/projects/${id}/rename`, { name }),

@@ -16,6 +16,7 @@ Terms used throughout:
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import threading
 import time
@@ -172,6 +173,45 @@ def create(folder: str | Path, name: str | None = None) -> Project:
     return p
 
 
+def create_from_files(paths: list[str], name: str | None = None) -> Project:
+    """A project made from files anywhere on the computer. The files stay
+    where they are; a project folder is made in Documents/Retake Projects."""
+    files = []
+    for raw in paths:
+        f = Path(raw.strip().strip('"'))
+        if f.is_file() and f.suffix.lower() in AUDIO_EXT | VIDEO_EXT:
+            files.append(f.resolve())
+    if not files:
+        raise ValueError("Drop video or audio files (mp4, mov, mkv, mp3, wav and so on).")
+    base = Path(os.environ.get("RETAKE_PROJECTS") or Path.home() / "Documents" / "Retake Projects")
+    title = (name or files[0].stem).strip() or "New video"
+    stamp = time.strftime("%d %b %Y")
+    folder = base / f"{title} {stamp}"
+    n = 2
+    while (folder / DATA_DIR / "project.json").exists():
+        folder = base / f"{title} {stamp} ({n})"
+        n += 1
+    folder.mkdir(parents=True, exist_ok=True)
+    sources = []
+    for f in files:
+        info = probe(f)
+        if info["duration"] <= 0.1:
+            continue
+        sources.append({"id": new_id("src"), "file": str(f), **info, "role": guess_role(f, info)})
+    if not sources:
+        raise ValueError("Those files have no video or sound Retake can read.")
+    data = {
+        "id": new_id("prj"), "name": title, "created": time.time(), "stage": "sources", "sources": sources,
+        "takes": [], "edit": {"clips": [], "overlays": [], "media": [], "audio": []},
+        "privacy": {"detections": [], "manual": [], "allowed": []}, "brain": {},
+        "output": {"fps": 0, "quality": "high", "captions": False}, "renders": [], "assets": [],
+    }
+    p = Project(folder, data)
+    p.data["takes"] = guess_takes(p.data["sources"])
+    p.save()
+    return p
+
+
 # ------------------------------------------------------------- guessing ----
 def guess_role(f: Path, info: dict) -> str:
     """screen | voice | camera | skip. The user can change any of these."""
@@ -222,7 +262,7 @@ def _take(voice: dict, video: dict | None) -> dict:
     kind = "camera" if video and video["role"] == "camera" else ("screen" if video else "audio")
     return {
         "id": new_id("tk"),
-        "name": (video or voice)["file"].rsplit(".", 1)[0],
+        "name": Path((video or voice)["file"]).stem,
         "kind": kind,
         "voice": voice["id"],
         "video": video["id"] if video else None,

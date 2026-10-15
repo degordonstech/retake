@@ -70,7 +70,7 @@ function reanchor<T extends { start: number; dur: number }>(prev: Clip[], next: 
   });
 }
 
-export default function Editor({ p, setP }: Props) {
+export default function Editor({ p, setP, start, active }: Props) {
   const toast = useToast();
   const looks = useLooks();
   const [edit, setEdit] = useState<Edit>(() => normalize(p.edit));
@@ -84,7 +84,7 @@ export default function Editor({ p, setP }: Props) {
   const [zoom, setZoom] = useState(() => clamp(1100 / Math.max(totalDuration(p.edit.clips), 10), 4, 120));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<Sel>(null);
-  const [tool, setTool] = useState<Tool>(() => (localStorage.getItem("retake.tool") as Tool) || "transcript");
+  const [tool, setTool] = useState<Tool>(() => (p.quick ? "media" : (localStorage.getItem("retake.tool") as Tool)) || "transcript");
   const [layout, setLayout] = useState<CaptionLayout | null>(null);
   const [transDur, setTransDur] = useState(0.5);
   const [importing, setImporting] = useState(false);
@@ -445,7 +445,23 @@ export default function Editor({ p, setP }: Props) {
           ))}
         </nav>
         <section className="toolpane">
-          {tool === "transcript" && (Object.keys(transcripts).length ? (
+          {tool === "transcript" && Object.keys(transcripts).length > 0 && Object.values(transcripts).every((t) => !t.words.length) && (
+            <div className="tool">
+              <div className="panel-head"><h3>Transcript</h3></div>
+              <div className="tool-body col" style={{ gap: 14 }}>
+                <div className="drop-hint">
+                  <Captions size={26} />
+                  <b>No transcript yet</b>
+                  <span className="faint small">Retake can listen to your video and write out every word. Then you get animated captions,
+                    editing by deleting words, and an AI first cut if you want one.</span>
+                  <button className="btn primary" disabled={active} onClick={() => start("prepare")}>
+                    {active ? <Loader2 size={15} className="spin" /> : <Captions size={15} />} {active ? "Listening" : "Transcribe my video"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {tool === "transcript" && !(Object.keys(transcripts).length > 0 && Object.values(transcripts).every((t) => !t.words.length)) && (Object.keys(transcripts).length ? (
             <Transcript p={p} transcripts={transcripts} clips={edit.clips} time={time} onSeek={seek}
               onCut={(take, i, j) => apply((e) => cutWords(e, take, transcripts[take], i, j))}
               onRestore={(take, i, j) => apply((e) => restoreWords(e, take, transcripts[take], i, j))}

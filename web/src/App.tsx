@@ -62,7 +62,10 @@ export default function App() {
             Retake needs ffmpeg to read and write video. Install it (winget install ffmpeg) and restart Retake.
           </div>
         )}
-        {route.view === "home" && <Home onOpen={(id) => setRoute({ view: "project", id })} />}
+        {route.view === "home" && <Home onOpen={(id, step) => {
+          if (step) { try { localStorage.setItem(`retake.step.${id}`, step); } catch { /* ignore */ } }
+          setRoute({ view: "project", id });
+        }} />}
         {route.view === "settings" && <SettingsPage />}
         {route.view === "project" && (
           <ProjectView key={route.id} id={route.id} onGone={() => { setLastProject(null); setRoute({ view: "home" }); }} />
